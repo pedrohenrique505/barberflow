@@ -1,0 +1,70 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+storybook-static/
+
+# Vite
+.vite/
+
+# TypeScript
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Coverage
+coverage/
+.nyc_output/
+htmlcov/
+
+# Prisma
+apps/api/prisma/dev.db
+apps/api/prisma/dev.db-journal
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+*:Zone.Identifier
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local certificates
+*.pem
+*.key
+*.crt
+
+# Runtime
+tmp/
+temp/
+
+# PM2
+.pm2/
+
+# Docker optional
+docker-compose.override.yml
+
+# Misc
+.cache/
+.eslintcache
+.turbo/
