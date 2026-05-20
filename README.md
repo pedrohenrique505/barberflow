@@ -224,3 +224,80 @@ Resposta esperada antes de cadastrar uma barbearia:
   "barbershop": null
 }
 ```
+
+## Barbearias
+
+### Criar minha barbearia
+
+Use o token retornado no cadastro ou login:
+
+```bash
+curl -X POST http://localhost:3333/barbershops \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI" \
+  -d '{
+    "name": "Barbearia do Zé",
+    "slug": "barbearia-do-ze",
+    "phone": "88999999999",
+    "address": "Rua Exemplo, 123"
+  }'
+```
+
+Resposta esperada:
+
+```json
+{
+  "id": "cl...",
+  "name": "Barbearia do Zé",
+  "slug": "barbearia-do-ze",
+  "phone": "88999999999",
+  "address": "Rua Exemplo, 123"
+}
+```
+
+Cada usuário pode ter apenas uma barbearia neste MVP.
+
+### Buscar barbearia pública por slug
+
+Esta rota não exige autenticação.
+
+```bash
+curl http://localhost:3333/barbershops/barbearia-do-ze
+```
+
+Resposta esperada:
+
+```json
+{
+  "id": "cl...",
+  "name": "Barbearia do Zé",
+  "slug": "barbearia-do-ze",
+  "phone": "88999999999",
+  "address": "Rua Exemplo, 123"
+}
+```
+
+### Buscar minha barbearia
+
+```bash
+curl http://localhost:3333/me/barbershop \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI"
+```
+
+Resposta esperada quando a barbearia existe:
+
+```json
+{
+  "id": "cl...",
+  "name": "Barbearia do Zé",
+  "slug": "barbearia-do-ze",
+  "phone": "88999999999",
+  "address": "Rua Exemplo, 123"
+}
+```
+
+Resposta esperada quando o usuário ainda não cadastrou uma barbearia:
+
+```json
+null
+```

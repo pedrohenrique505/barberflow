@@ -6,6 +6,8 @@ import { env } from "./env/index.js";
 import { prisma } from "./lib/prisma.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { AuthError } from "./modules/auth/auth.service.js";
+import { barbershopRoutes } from "./modules/barbershops/barbershop.routes.js";
+import { BarbershopError } from "./modules/barbershops/barbershop.service.js";
 import { authPlugin } from "./plugins/auth.js";
 
 export function buildApp() {
@@ -19,9 +21,10 @@ export function buildApp() {
 
   app.register(authPlugin);
   app.register(authRoutes);
+  app.register(barbershopRoutes);
 
   app.setErrorHandler((error, _request, reply) => {
-    if (error instanceof AuthError) {
+    if (error instanceof AuthError || error instanceof BarbershopError) {
       return reply.code(error.statusCode).send({
         message: error.message,
       });
