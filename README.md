@@ -65,6 +65,15 @@ Use `apps/api/.env.example` como modelo. Arquivos reais `.env` não devem ser co
 cp apps/api/.env.example apps/api/.env
 ```
 
+Variáveis esperadas neste momento:
+
+```env
+DATABASE_URL="postgresql://barberflow:barberflow@localhost:5432/barberflow?schema=public"
+JWT_SECRET="troque-esta-chave-em-producao"
+PORT=3333
+NODE_ENV=development
+```
+
 ## Ambiente local
 
 1. Instale as dependências:
@@ -138,5 +147,80 @@ Resposta esperada:
 {
   "status": "ok",
   "database": "connected"
+}
+```
+
+## Autenticação da API
+
+A autenticação inicial usa JWT em Bearer token. As rotas abaixo assumem a API rodando em `http://localhost:3333`.
+
+### Cadastro
+
+```bash
+curl -X POST http://localhost:3333/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Pedro Henrique",
+    "email": "pedro@email.com",
+    "password": "12345678"
+  }'
+```
+
+Resposta esperada:
+
+```json
+{
+  "user": {
+    "id": "cl...",
+    "name": "Pedro Henrique",
+    "email": "pedro@email.com"
+  },
+  "token": "..."
+}
+```
+
+### Login
+
+```bash
+curl -X POST http://localhost:3333/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "pedro@email.com",
+    "password": "12345678"
+  }'
+```
+
+Resposta esperada:
+
+```json
+{
+  "user": {
+    "id": "cl...",
+    "name": "Pedro Henrique",
+    "email": "pedro@email.com"
+  },
+  "token": "..."
+}
+```
+
+### Usuário autenticado
+
+Use o token retornado no cadastro ou login:
+
+```bash
+curl http://localhost:3333/me \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI"
+```
+
+Resposta esperada antes de cadastrar uma barbearia:
+
+```json
+{
+  "user": {
+    "id": "cl...",
+    "name": "Pedro Henrique",
+    "email": "pedro@email.com"
+  },
+  "barbershop": null
 }
 ```
