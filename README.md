@@ -301,3 +301,128 @@ Resposta esperada quando o usuário ainda não cadastrou uma barbearia:
 ```json
 null
 ```
+
+## Serviços
+
+As rotas autenticadas de serviços usam a barbearia vinculada ao usuário logado. Não é possível informar outro `barbershopId` pelo payload.
+
+### Criar serviço
+
+```bash
+curl -X POST http://localhost:3333/services \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI" \
+  -d '{
+    "name": "Corte masculino",
+    "description": "Corte tradicional ou moderno",
+    "priceInCents": 3500,
+    "durationInMinutes": 40
+  }'
+```
+
+Resposta esperada:
+
+```json
+{
+  "id": "cl...",
+  "barbershopId": "cl...",
+  "name": "Corte masculino",
+  "description": "Corte tradicional ou moderno",
+  "priceInCents": 3500,
+  "durationInMinutes": 40,
+  "isActive": true,
+  "createdAt": "2026-05-20T02:25:00.000Z",
+  "updatedAt": "2026-05-20T02:25:00.000Z"
+}
+```
+
+### Listar meus serviços
+
+```bash
+curl http://localhost:3333/services \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI"
+```
+
+Resposta esperada:
+
+```json
+[
+  {
+    "id": "cl...",
+    "barbershopId": "cl...",
+    "name": "Corte masculino",
+    "description": "Corte tradicional ou moderno",
+    "priceInCents": 3500,
+    "durationInMinutes": 40,
+    "isActive": true,
+    "createdAt": "2026-05-20T02:25:00.000Z",
+    "updatedAt": "2026-05-20T02:25:00.000Z"
+  }
+]
+```
+
+### Atualizar serviço
+
+```bash
+curl -X PUT http://localhost:3333/services/SERVICE_ID \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI" \
+  -d '{
+    "name": "Corte completo",
+    "description": "Corte + acabamento",
+    "priceInCents": 4500,
+    "durationInMinutes": 50,
+    "isActive": true
+  }'
+```
+
+### Inativar serviço
+
+O delete é lógico: o serviço permanece no banco e recebe `isActive: false`.
+
+```bash
+curl -X DELETE http://localhost:3333/services/SERVICE_ID \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI"
+```
+
+Resposta esperada:
+
+```json
+{
+  "id": "cl...",
+  "barbershopId": "cl...",
+  "name": "Corte completo",
+  "description": "Corte + acabamento",
+  "priceInCents": 4500,
+  "durationInMinutes": 50,
+  "isActive": false,
+  "createdAt": "2026-05-20T02:25:00.000Z",
+  "updatedAt": "2026-05-20T02:30:00.000Z"
+}
+```
+
+### Listar serviços públicos por slug
+
+Esta rota não exige autenticação e retorna apenas serviços ativos.
+
+```bash
+curl http://localhost:3333/barbershops/barbearia-do-ze/services
+```
+
+Resposta esperada:
+
+```json
+[
+  {
+    "id": "cl...",
+    "barbershopId": "cl...",
+    "name": "Corte masculino",
+    "description": "Corte tradicional ou moderno",
+    "priceInCents": 3500,
+    "durationInMinutes": 40,
+    "isActive": true,
+    "createdAt": "2026-05-20T02:25:00.000Z",
+    "updatedAt": "2026-05-20T02:25:00.000Z"
+  }
+]
+```
