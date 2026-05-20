@@ -6,3 +6,159 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum AppointmentStatus {
+  scheduled
+  confirmed
+  completed
+  cancelled
+  no_show
+}
+
+enum Weekday {
+  sunday
+  monday
+  tuesday
+  wednesday
+  thursday
+  friday
+  saturday
+}
+
+model User {
+  id           String      @id @default(cuid())
+  name         String
+  email        String      @unique
+  passwordHash String
+  barbershop   Barbershop?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model Barbershop {
+  id        String   @id @default(cuid())
+  ownerId   String   @unique
+  name      String
+  slug      String   @unique
+  phone     String?
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner        User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  barbers      Barber[]
+  services     Service[]
+  customers    Customer[]
+  appointments Appointment[]
+  workingHours WorkingHour[]
+  blockedTimes BlockedTime[]
+
+  @@index([slug])
+}
+
+model Barber {
+  id           String   @id @default(cuid())
+  barbershopId String
+  name         String
+  phone        String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  barbershop   Barbershop    @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+  blockedTimes BlockedTime[]
+
+  @@index([barbershopId])
+}
+
+model Service {
+  id              String   @id @default(cuid())
+  barbershopId    String
+  name            String
+  priceInCents    Int
+  durationMinutes Int
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  barbershop   Barbershop    @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@index([barbershopId])
+}
+
+model Customer {
+  id           String   @id @default(cuid())
+  barbershopId String
+  name         String
+  phone        String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  barbershop   Barbershop    @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@unique([barbershopId, phone])
+  @@index([barbershopId])
+  @@index([phone])
+}
+
+model Appointment {
+  id           String            @id @default(cuid())
+  barbershopId String
+  barberId     String
+  serviceId    String
+  customerId   String
+  startAt      DateTime
+  endAt        DateTime
+  status       AppointmentStatus @default(scheduled)
+  notes        String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  barber     Barber     @relation(fields: [barberId], references: [id], onDelete: Restrict)
+  service    Service    @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@index([barbershopId])
+  @@index([startAt])
+  @@index([endAt])
+  @@index([barberId, startAt])
+}
+
+model WorkingHour {
+  id             String   @id @default(cuid())
+  barbershopId   String
+  weekday        Weekday
+  opensAtMinute  Int
+  closesAtMinute Int
+  isClosed       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+
+  @@unique([barbershopId, weekday])
+  @@index([barbershopId])
+}
+
+model BlockedTime {
+  id           String   @id @default(cuid())
+  barbershopId String
+  barberId     String?
+  startAt      DateTime
+  endAt        DateTime
+  reason       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  barbershop Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  barber     Barber?    @relation(fields: [barberId], references: [id], onDelete: Cascade)
+
+  @@index([barbershopId])
+  @@index([barberId])
+  @@index([startAt])
+  @@index([endAt])
+}
