@@ -9,7 +9,7 @@
     "build": "pnpm --recursive build",
     "typecheck": "pnpm --recursive typecheck",
     "lint": "pnpm --recursive lint",
-    "prisma:generate": "pnpm --filter @barberflow/api prisma:generate"
+    "prisma:generate": "pnpm --filter api prisma:generate"
   },
   "engines": {
     "node": ">=20.11.0",

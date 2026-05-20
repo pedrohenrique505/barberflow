@@ -64,3 +64,79 @@ Use `apps/api/.env.example` como modelo. Arquivos reais `.env` não devem ser co
 ```bash
 cp apps/api/.env.example apps/api/.env
 ```
+
+## Ambiente local
+
+1. Instale as dependências:
+
+```bash
+pnpm install
+```
+
+2. Suba o PostgreSQL local com Docker:
+
+```bash
+docker compose up -d
+```
+
+O banco local usa as seguintes credenciais:
+
+```txt
+Database: barberflow
+User: barberflow
+Password: barberflow
+Porta: 5432
+```
+
+3. Copie o arquivo de ambiente do backend:
+
+```bash
+cp apps/api/.env.example apps/api/.env
+```
+
+4. Gere o Prisma Client:
+
+```bash
+pnpm --filter api prisma:generate
+```
+
+5. Rode migrations do Prisma quando houver modelos no schema:
+
+```bash
+pnpm --filter api prisma:migrate
+```
+
+6. Inicie a API em desenvolvimento:
+
+```bash
+pnpm --filter api dev
+```
+
+7. Teste o health check da API:
+
+```bash
+curl http://localhost:3333/health
+```
+
+Resposta esperada:
+
+```json
+{
+  "status": "ok"
+}
+```
+
+8. Teste o health check do banco:
+
+```bash
+curl http://localhost:3333/health/db
+```
+
+Resposta esperada:
+
+```json
+{
+  "status": "ok",
+  "database": "connected"
+}
+```

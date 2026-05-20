@@ -29,7 +29,7 @@ jobs:
       - name: Generate Prisma client
         run: pnpm prisma:generate
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/barberflow?schema=public
+          DATABASE_URL: postgresql://barberflow:barberflow@localhost:5432/barberflow?schema=public
 
       - name: Typecheck
         run: pnpm typecheck
