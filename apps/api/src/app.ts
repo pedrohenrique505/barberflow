@@ -10,6 +10,8 @@ import { barberRoutes } from "./modules/barbers/barber.routes.js";
 import { BarberError } from "./modules/barbers/barber.service.js";
 import { barbershopRoutes } from "./modules/barbershops/barbershop.routes.js";
 import { BarbershopError } from "./modules/barbershops/barbershop.service.js";
+import { blockedTimeRoutes } from "./modules/blocked-times/blocked-time.routes.js";
+import { BlockedTimeError } from "./modules/blocked-times/blocked-time.service.js";
 import { serviceRoutes } from "./modules/services/service.routes.js";
 import { ServiceError } from "./modules/services/service.service.js";
 import { workingHourRoutes } from "./modules/working-hours/working-hour.routes.js";
@@ -31,6 +33,7 @@ export function buildApp() {
   app.register(serviceRoutes);
   app.register(barberRoutes);
   app.register(workingHourRoutes);
+  app.register(blockedTimeRoutes);
 
   app.setErrorHandler((error, _request, reply) => {
     if (
@@ -38,7 +41,8 @@ export function buildApp() {
       error instanceof BarbershopError ||
       error instanceof ServiceError ||
       error instanceof BarberError ||
-      error instanceof WorkingHourError
+      error instanceof WorkingHourError ||
+      error instanceof BlockedTimeError
     ) {
       return reply.code(error.statusCode).send({
         message: error.message,

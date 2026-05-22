@@ -634,3 +634,111 @@ curl -X PUT http://localhost:3333/working-hours \
 ```
 
 A resposta retorna a lista atualizada, ordenada por dia da semana.
+
+## Horários bloqueados
+
+As rotas de horários bloqueados são autenticadas e sempre usam a barbearia vinculada ao usuário logado. Quando `barberId` for `null`, o bloqueio vale para a barbearia inteira. Quando `barberId` for informado, ele precisa pertencer à barbearia do usuário.
+
+### Criar bloqueio geral
+
+```bash
+curl -X POST http://localhost:3333/blocked-times \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI" \
+  -d '{
+    "barberId": null,
+    "startAt": "2026-05-22T12:00:00.000Z",
+    "endAt": "2026-05-22T14:00:00.000Z",
+    "reason": "Almoço"
+  }'
+```
+
+Resposta esperada:
+
+```json
+{
+  "id": "cl...",
+  "barbershopId": "cl...",
+  "barberId": null,
+  "startAt": "2026-05-22T12:00:00.000Z",
+  "endAt": "2026-05-22T14:00:00.000Z",
+  "reason": "Almoço",
+  "createdAt": "2026-05-20T02:25:00.000Z",
+  "updatedAt": "2026-05-20T02:25:00.000Z"
+}
+```
+
+### Criar bloqueio para barbeiro
+
+```bash
+curl -X POST http://localhost:3333/blocked-times \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI" \
+  -d '{
+    "barberId": "BARBER_ID",
+    "startAt": "2026-05-22T16:00:00.000Z",
+    "endAt": "2026-05-22T18:00:00.000Z",
+    "reason": "Compromisso externo"
+  }'
+```
+
+### Listar bloqueios
+
+```bash
+curl "http://localhost:3333/blocked-times?startDate=2026-05-22T00:00:00.000Z&endDate=2026-05-23T00:00:00.000Z" \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI"
+```
+
+Também é possível filtrar por barbeiro:
+
+```bash
+curl "http://localhost:3333/blocked-times?barberId=BARBER_ID&startDate=2026-05-22T00:00:00.000Z&endDate=2026-05-23T00:00:00.000Z" \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI"
+```
+
+Resposta esperada:
+
+```json
+[
+  {
+    "id": "cl...",
+    "barbershopId": "cl...",
+    "barberId": null,
+    "startAt": "2026-05-22T12:00:00.000Z",
+    "endAt": "2026-05-22T14:00:00.000Z",
+    "reason": "Almoço",
+    "createdAt": "2026-05-20T02:25:00.000Z",
+    "updatedAt": "2026-05-20T02:25:00.000Z"
+  }
+]
+```
+
+### Buscar bloqueio por id
+
+```bash
+curl http://localhost:3333/blocked-times/BLOCKED_TIME_ID \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI"
+```
+
+### Atualizar bloqueio
+
+```bash
+curl -X PUT http://localhost:3333/blocked-times/BLOCKED_TIME_ID \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI" \
+  -d '{
+    "barberId": "BARBER_ID",
+    "startAt": "2026-05-22T13:00:00.000Z",
+    "endAt": "2026-05-22T15:00:00.000Z",
+    "reason": "Compromisso externo"
+  }'
+```
+
+### Remover bloqueio
+
+```bash
+curl -X DELETE http://localhost:3333/blocked-times/BLOCKED_TIME_ID \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI"
+```
+
+Resposta esperada: `204 No Content`.
