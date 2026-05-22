@@ -12,6 +12,8 @@ import { barbershopRoutes } from "./modules/barbershops/barbershop.routes.js";
 import { BarbershopError } from "./modules/barbershops/barbershop.service.js";
 import { serviceRoutes } from "./modules/services/service.routes.js";
 import { ServiceError } from "./modules/services/service.service.js";
+import { workingHourRoutes } from "./modules/working-hours/working-hour.routes.js";
+import { WorkingHourError } from "./modules/working-hours/working-hour.service.js";
 import { authPlugin } from "./plugins/auth.js";
 
 export function buildApp() {
@@ -28,13 +30,15 @@ export function buildApp() {
   app.register(barbershopRoutes);
   app.register(serviceRoutes);
   app.register(barberRoutes);
+  app.register(workingHourRoutes);
 
   app.setErrorHandler((error, _request, reply) => {
     if (
       error instanceof AuthError ||
       error instanceof BarbershopError ||
       error instanceof ServiceError ||
-      error instanceof BarberError
+      error instanceof BarberError ||
+      error instanceof WorkingHourError
     ) {
       return reply.code(error.statusCode).send({
         message: error.message,

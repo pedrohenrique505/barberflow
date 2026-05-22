@@ -560,3 +560,77 @@ Resposta esperada:
   }
 ]
 ```
+
+## Horários de funcionamento
+
+As rotas de horários de funcionamento são autenticadas e sempre usam a barbearia vinculada ao usuário logado. Não é possível alterar horários de outra barbearia pelo payload.
+
+Use `dayOfWeek` com `0` para domingo, `1` para segunda-feira, até `6` para sábado.
+
+### Listar horários
+
+```bash
+curl http://localhost:3333/working-hours \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI"
+```
+
+Resposta esperada:
+
+```json
+[
+  {
+    "id": "cl...",
+    "barbershopId": "cl...",
+    "dayOfWeek": 0,
+    "opensAt": null,
+    "closesAt": null,
+    "isOpen": false,
+    "createdAt": "2026-05-20T02:25:00.000Z",
+    "updatedAt": "2026-05-20T02:25:00.000Z"
+  },
+  {
+    "id": "cl...",
+    "barbershopId": "cl...",
+    "dayOfWeek": 1,
+    "opensAt": "08:00",
+    "closesAt": "18:00",
+    "isOpen": true,
+    "createdAt": "2026-05-20T02:25:00.000Z",
+    "updatedAt": "2026-05-20T02:25:00.000Z"
+  }
+]
+```
+
+### Atualizar horários
+
+Se `isOpen` for `true`, `opensAt` e `closesAt` são obrigatórios no formato `HH:mm`, e `closesAt` precisa ser maior que `opensAt`. Se `isOpen` for `false`, os horários podem ser `null`.
+
+```bash
+curl -X PUT http://localhost:3333/working-hours \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI" \
+  -d '{
+    "workingHours": [
+      {
+        "dayOfWeek": 1,
+        "opensAt": "08:00",
+        "closesAt": "18:00",
+        "isOpen": true
+      },
+      {
+        "dayOfWeek": 2,
+        "opensAt": "08:00",
+        "closesAt": "18:00",
+        "isOpen": true
+      },
+      {
+        "dayOfWeek": 0,
+        "opensAt": null,
+        "closesAt": null,
+        "isOpen": false
+      }
+    ]
+  }'
+```
+
+A resposta retorna a lista atualizada, ordenada por dia da semana.
