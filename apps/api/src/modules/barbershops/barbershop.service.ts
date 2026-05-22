@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 
 import { prisma } from "../../lib/prisma.js";
 import type { CreateBarbershopInput } from "./barbershop.schemas.js";
@@ -97,7 +97,7 @@ async function persistBarbershop(
     });
   } catch (error) {
     if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error instanceof PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
       const target = Array.isArray(error.meta?.target)

@@ -426,3 +426,137 @@ Resposta esperada:
   }
 ]
 ```
+
+## Barbeiros
+
+As rotas autenticadas de barbeiros usam a barbearia vinculada ao usuário logado. Não é possível informar outro `barbershopId` pelo payload.
+
+### Criar barbeiro
+
+```bash
+curl -X POST http://localhost:3333/barbers \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI" \
+  -d '{
+    "name": "João Silva",
+    "phone": "88999999999"
+  }'
+```
+
+Resposta esperada:
+
+```json
+{
+  "id": "cl...",
+  "barbershopId": "cl...",
+  "name": "João Silva",
+  "phone": "88999999999",
+  "isActive": true,
+  "createdAt": "2026-05-20T02:25:00.000Z",
+  "updatedAt": "2026-05-20T02:25:00.000Z"
+}
+```
+
+### Listar meus barbeiros
+
+```bash
+curl http://localhost:3333/barbers \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI"
+```
+
+Resposta esperada:
+
+```json
+[
+  {
+    "id": "cl...",
+    "barbershopId": "cl...",
+    "name": "João Silva",
+    "phone": "88999999999",
+    "isActive": true,
+    "createdAt": "2026-05-20T02:25:00.000Z",
+    "updatedAt": "2026-05-20T02:25:00.000Z"
+  }
+]
+```
+
+### Buscar barbeiro por id
+
+```bash
+curl http://localhost:3333/barbers/BARBER_ID \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI"
+```
+
+Resposta esperada:
+
+```json
+{
+  "id": "cl...",
+  "barbershopId": "cl...",
+  "name": "João Silva",
+  "phone": "88999999999",
+  "isActive": true,
+  "createdAt": "2026-05-20T02:25:00.000Z",
+  "updatedAt": "2026-05-20T02:25:00.000Z"
+}
+```
+
+### Atualizar barbeiro
+
+```bash
+curl -X PUT http://localhost:3333/barbers/BARBER_ID \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI" \
+  -d '{
+    "name": "João Silva",
+    "phone": "88999999999",
+    "isActive": true
+  }'
+```
+
+### Inativar barbeiro
+
+O delete é lógico: o barbeiro permanece no banco e recebe `isActive: false`.
+
+```bash
+curl -X DELETE http://localhost:3333/barbers/BARBER_ID \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI"
+```
+
+Resposta esperada:
+
+```json
+{
+  "id": "cl...",
+  "barbershopId": "cl...",
+  "name": "João Silva",
+  "phone": "88999999999",
+  "isActive": false,
+  "createdAt": "2026-05-20T02:25:00.000Z",
+  "updatedAt": "2026-05-20T02:30:00.000Z"
+}
+```
+
+### Listar barbeiros públicos por slug
+
+Esta rota não exige autenticação e retorna apenas barbeiros ativos.
+
+```bash
+curl http://localhost:3333/barbershops/barbearia-do-ze/barbers
+```
+
+Resposta esperada:
+
+```json
+[
+  {
+    "id": "cl...",
+    "barbershopId": "cl...",
+    "name": "João Silva",
+    "phone": "88999999999",
+    "isActive": true,
+    "createdAt": "2026-05-20T02:25:00.000Z",
+    "updatedAt": "2026-05-20T02:25:00.000Z"
+  }
+]
+```
