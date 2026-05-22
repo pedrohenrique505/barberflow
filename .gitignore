@@ -68,3 +68,5 @@ docker-compose.override.yml
 .cache/
 .eslintcache
 .turbo/
+*:Zone.Identifier
+*:Zone.Identifier
