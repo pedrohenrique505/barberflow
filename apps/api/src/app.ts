@@ -4,6 +4,8 @@ import { ZodError } from "zod";
 
 import { env } from "./env/index.js";
 import { prisma } from "./lib/prisma.js";
+import { appointmentRoutes } from "./modules/appointments/appointment.routes.js";
+import { AppointmentError } from "./modules/appointments/appointment.service.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { AuthError } from "./modules/auth/auth.service.js";
 import { availabilityRoutes } from "./modules/availability/availability.routes.js";
@@ -32,6 +34,7 @@ export function buildApp() {
   app.register(authPlugin);
   app.register(authRoutes);
   app.register(availabilityRoutes);
+  app.register(appointmentRoutes);
   app.register(barbershopRoutes);
   app.register(serviceRoutes);
   app.register(barberRoutes);
@@ -42,6 +45,7 @@ export function buildApp() {
     if (
       error instanceof AuthError ||
       error instanceof AvailabilityError ||
+      error instanceof AppointmentError ||
       error instanceof BarbershopError ||
       error instanceof ServiceError ||
       error instanceof BarberError ||

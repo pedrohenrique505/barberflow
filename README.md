@@ -603,6 +603,148 @@ Resposta esperada:
 }
 ```
 
+## Agendamentos
+
+### Criar agendamento público
+
+Esta rota não exige autenticação. O cliente informa a barbearia pelo slug, escolhe serviço, barbeiro e horário, e o sistema cria ou reutiliza o cliente pelo telefone.
+
+```bash
+curl -X POST http://localhost:3333/appointments \
+  -H "Content-Type: application/json" \
+  -d '{
+    "barbershopSlug": "barbearia-do-ze",
+    "serviceId": "SERVICE_ID",
+    "barberId": "BARBER_ID",
+    "startAt": "2026-05-22T08:00:00.000Z",
+    "customerName": "Maria Souza",
+    "customerPhone": "88999999999"
+  }'
+```
+
+O horário precisa estar disponível conforme as mesmas regras da rota `/availability`: expediente da barbearia, duração do serviço, bloqueios e agendamentos `scheduled` ou `confirmed`.
+
+Resposta esperada:
+
+```json
+{
+  "appointment": {
+    "id": "cl...",
+    "status": "scheduled",
+    "startAt": "2026-05-22T08:00:00.000Z",
+    "endAt": "2026-05-22T08:40:00.000Z",
+    "service": {
+      "id": "SERVICE_ID",
+      "name": "Corte masculino",
+      "durationInMinutes": 40,
+      "priceInCents": 3500
+    },
+    "barber": {
+      "id": "BARBER_ID",
+      "name": "João Silva"
+    },
+    "customer": {
+      "id": "CUSTOMER_ID",
+      "name": "Maria Souza",
+      "phone": "88999999999"
+    },
+    "barbershop": {
+      "id": "BARBERSHOP_ID",
+      "name": "Barbearia do Zé",
+      "slug": "barbearia-do-ze"
+    }
+  }
+}
+```
+
+### Listar agendamentos
+
+Esta rota exige autenticação e retorna apenas agendamentos da barbearia do usuário logado.
+
+```bash
+curl "http://localhost:3333/appointments?startDate=2026-05-22T00:00:00.000Z&endDate=2026-05-23T00:00:00.000Z&status=scheduled&barberId=BARBER_ID" \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI"
+```
+
+Os filtros `status`, `startDate`, `endDate` e `barberId` são opcionais. Os status aceitos são `scheduled`, `confirmed`, `completed`, `cancelled` e `no_show`.
+
+Resposta esperada:
+
+```json
+[
+  {
+    "id": "cl...",
+    "status": "scheduled",
+    "startAt": "2026-05-22T08:00:00.000Z",
+    "endAt": "2026-05-22T08:40:00.000Z",
+    "service": {
+      "id": "SERVICE_ID",
+      "name": "Corte masculino",
+      "durationInMinutes": 40,
+      "priceInCents": 3500
+    },
+    "barber": {
+      "id": "BARBER_ID",
+      "name": "João Silva"
+    },
+    "customer": {
+      "id": "CUSTOMER_ID",
+      "name": "Maria Souza",
+      "phone": "88999999999"
+    },
+    "barbershop": {
+      "id": "BARBERSHOP_ID",
+      "name": "Barbearia do Zé",
+      "slug": "barbearia-do-ze"
+    }
+  }
+]
+```
+
+### Alterar status do agendamento
+
+Esta rota exige autenticação. O agendamento precisa pertencer à barbearia do usuário logado. Cancelamentos mudam o status para `cancelled`; o registro não é deletado.
+
+```bash
+curl -X PATCH http://localhost:3333/appointments/APPOINTMENT_ID/status \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI" \
+  -d '{
+    "status": "confirmed"
+  }'
+```
+
+Resposta esperada:
+
+```json
+{
+  "id": "cl...",
+  "status": "confirmed",
+  "startAt": "2026-05-22T08:00:00.000Z",
+  "endAt": "2026-05-22T08:40:00.000Z",
+  "service": {
+    "id": "SERVICE_ID",
+    "name": "Corte masculino",
+    "durationInMinutes": 40,
+    "priceInCents": 3500
+  },
+  "barber": {
+    "id": "BARBER_ID",
+    "name": "João Silva"
+  },
+  "customer": {
+    "id": "CUSTOMER_ID",
+    "name": "Maria Souza",
+    "phone": "88999999999"
+  },
+  "barbershop": {
+    "id": "BARBERSHOP_ID",
+    "name": "Barbearia do Zé",
+    "slug": "barbearia-do-ze"
+  }
+}
+```
+
 ## Horários de funcionamento
 
 As rotas de horários de funcionamento são autenticadas e sempre usam a barbearia vinculada ao usuário logado. Não é possível alterar horários de outra barbearia pelo payload.

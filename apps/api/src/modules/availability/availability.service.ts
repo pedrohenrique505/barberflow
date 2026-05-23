@@ -18,6 +18,24 @@ type BusyInterval = {
   endAt: Date;
 };
 
+export type SchedulingContext = {
+  barbershop: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  service: {
+    id: string;
+    name: string;
+    durationMinutes: number;
+    priceInCents: number;
+  };
+  barber: {
+    id: string;
+    name: string;
+  };
+};
+
 export class AvailabilityError extends Error {
   constructor(
     message: string,
@@ -28,12 +46,59 @@ export class AvailabilityError extends Error {
 }
 
 export async function getAvailability(query: AvailabilityQuery) {
+  const context = await getSchedulingContext({
+    barbershopSlug: query.barbershopSlug,
+    serviceId: query.serviceId,
+    barberId: query.barberId,
+  });
+  const dayStart = getUtcDayStart(query.date);
+  const dayEnd = addMinutes(dayStart, 24 * 60);
+  const workingHour = await getWorkingHour(context.barbershop.id, dayStart);
+
+  if (!workingHour || workingHour.isClosed) {
+    return formatAvailabilityResponse(
+      query.date,
+      context.service,
+      context.barber,
+      [],
+    );
+  }
+
+  const busyIntervals = await findBusyIntervals({
+    barbershopId: context.barbershop.id,
+    barberId: context.barber.id,
+    startAt: dayStart,
+    endAt: dayEnd,
+  });
+  const slots = buildAvailableSlots({
+    dayStart,
+    opensAtMinute: workingHour.opensAtMinute,
+    closesAtMinute: workingHour.closesAtMinute,
+    durationInMinutes: context.service.durationMinutes,
+    busyIntervals,
+  });
+
+  return formatAvailabilityResponse(
+    query.date,
+    context.service,
+    context.barber,
+    slots,
+  );
+}
+
+export async function getSchedulingContext(input: {
+  barbershopSlug: string;
+  serviceId: string;
+  barberId: string;
+}) {
   const barbershop = await prisma.barbershop.findUnique({
     where: {
-      slug: query.barbershopSlug,
+      slug: input.barbershopSlug,
     },
     select: {
       id: true,
+      name: true,
+      slug: true,
     },
   });
 
@@ -43,13 +108,15 @@ export async function getAvailability(query: AvailabilityQuery) {
 
   const service = await prisma.service.findFirst({
     where: {
-      id: query.serviceId,
+      id: input.serviceId,
       barbershopId: barbershop.id,
       isActive: true,
     },
     select: {
       id: true,
+      name: true,
       durationMinutes: true,
+      priceInCents: true,
     },
   });
 
@@ -59,7 +126,7 @@ export async function getAvailability(query: AvailabilityQuery) {
 
   const barber = await prisma.barber.findFirst({
     where: {
-      id: query.barberId,
+      id: input.barberId,
       barbershopId: barbershop.id,
       isActive: true,
     },
@@ -73,76 +140,52 @@ export async function getAvailability(query: AvailabilityQuery) {
     throw new AvailabilityError("Barbeiro não encontrado ou inativo.", 404);
   }
 
-  const dayStart = getUtcDayStart(query.date);
-  const dayEnd = addMinutes(dayStart, 24 * 60);
-  const weekday = getWeekday(dayStart);
+  return {
+    barbershop,
+    service,
+    barber,
+  };
+}
 
-  const workingHour = await prisma.workingHour.findUnique({
-    where: {
-      barbershopId_weekday: {
-        barbershopId: barbershop.id,
-        weekday,
-      },
-    },
-    select: {
-      opensAtMinute: true,
-      closesAtMinute: true,
-      isClosed: true,
-    },
-  });
+export async function ensureSlotIsAvailable(input: {
+  barbershopId: string;
+  barberId: string;
+  startAt: Date;
+  durationInMinutes: number;
+}) {
+  const dayStart = getUtcDayStart(input.startAt.toISOString().slice(0, 10));
+  const dayEnd = addMinutes(dayStart, 24 * 60);
+  const workingHour = await getWorkingHour(input.barbershopId, dayStart);
 
   if (!workingHour || workingHour.isClosed) {
-    return formatAvailabilityResponse(query.date, service, barber, []);
+    throw new AvailabilityError("Barbearia fechada neste dia.", 400);
   }
 
-  const [appointments, blockedTimes] = await Promise.all([
-    prisma.appointment.findMany({
-      where: {
-        barbershopId: barbershop.id,
-        barberId: barber.id,
-        status: {
-          in: [AppointmentStatus.scheduled, AppointmentStatus.confirmed],
-        },
-        startAt: {
-          lt: dayEnd,
-        },
-        endAt: {
-          gt: dayStart,
-        },
-      },
-      select: {
-        startAt: true,
-        endAt: true,
-      },
-    }),
-    prisma.blockedTime.findMany({
-      where: {
-        barbershopId: barbershop.id,
-        OR: [{ barberId: null }, { barberId: barber.id }],
-        startAt: {
-          lt: dayEnd,
-        },
-        endAt: {
-          gt: dayStart,
-        },
-      },
-      select: {
-        startAt: true,
-        endAt: true,
-      },
-    }),
-  ]);
-
-  const busyIntervals = [...appointments, ...blockedTimes];
+  const busyIntervals = await findBusyIntervals({
+    barbershopId: input.barbershopId,
+    barberId: input.barberId,
+    startAt: dayStart,
+    endAt: dayEnd,
+  });
   const slots = buildAvailableSlots({
     dayStart,
     opensAtMinute: workingHour.opensAtMinute,
     closesAtMinute: workingHour.closesAtMinute,
-    durationInMinutes: service.durationMinutes,
+    durationInMinutes: input.durationInMinutes,
     busyIntervals,
   });
+  const selectedSlot = slots.find(
+    (slot) => slot.startAt.getTime() === input.startAt.getTime(),
+  );
 
-  return formatAvailabilityResponse(query.date, service, barber, slots);
+  if (!selectedSlot) {
+    throw new AvailabilityError("Horário indisponível.", 409);
+  }
+
+  return {
+    startAt: input.startAt,
+    endAt: selectedSlot.endAt,
+  };
 }
 
 function buildAvailableSlots(input: {
@@ -209,6 +252,71 @@ function getUtcDayStart(date: string) {
 
 function addMinutes(date: Date, minutes: number) {
   return new Date(date.getTime() + minutes * 60 * 1000);
+}
+
+async function getWorkingHour(barbershopId: string, dayStart: Date) {
+  const weekday = getWeekday(dayStart);
+
+  return prisma.workingHour.findUnique({
+    where: {
+      barbershopId_weekday: {
+        barbershopId,
+        weekday,
+      },
+    },
+    select: {
+      opensAtMinute: true,
+      closesAtMinute: true,
+      isClosed: true,
+    },
+  });
+}
+
+async function findBusyIntervals(input: {
+  barbershopId: string;
+  barberId: string;
+  startAt: Date;
+  endAt: Date;
+}) {
+  const [appointments, blockedTimes] = await Promise.all([
+    prisma.appointment.findMany({
+      where: {
+        barbershopId: input.barbershopId,
+        barberId: input.barberId,
+        status: {
+          in: [AppointmentStatus.scheduled, AppointmentStatus.confirmed],
+        },
+        startAt: {
+          lt: input.endAt,
+        },
+        endAt: {
+          gt: input.startAt,
+        },
+      },
+      select: {
+        startAt: true,
+        endAt: true,
+      },
+    }),
+    prisma.blockedTime.findMany({
+      where: {
+        barbershopId: input.barbershopId,
+        OR: [{ barberId: null }, { barberId: input.barberId }],
+        startAt: {
+          lt: input.endAt,
+        },
+        endAt: {
+          gt: input.startAt,
+        },
+      },
+      select: {
+        startAt: true,
+        endAt: true,
+      },
+    }),
+  ]);
+
+  return [...appointments, ...blockedTimes];
 }
 
 function getWeekday(date: Date) {
