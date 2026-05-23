@@ -839,6 +839,69 @@ Resposta esperada:
 }
 ```
 
+## Dashboard administrativo
+
+### Métricas do dashboard
+
+Esta rota exige autenticação e retorna apenas dados resumidos da barbearia vinculada ao usuário logado.
+
+```bash
+curl http://localhost:3333/dashboard/metrics \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI"
+```
+
+Resposta esperada:
+
+```json
+{
+  "summary": {
+    "totalServices": 1,
+    "activeServices": 1,
+    "totalBarbers": 1,
+    "activeBarbers": 1,
+    "totalCustomers": 1,
+    "totalAppointments": 1
+  },
+  "appointmentsByStatus": {
+    "scheduled": 1,
+    "confirmed": 0,
+    "completed": 0,
+    "cancelled": 0,
+    "no_show": 0
+  },
+  "today": {
+    "totalAppointments": 1,
+    "appointments": [
+      {
+        "id": "APPOINTMENT_ID",
+        "status": "scheduled",
+        "startAt": "2026-05-22T08:00:00.000Z",
+        "endAt": "2026-05-22T08:40:00.000Z",
+        "service": {
+          "id": "SERVICE_ID",
+          "name": "Corte masculino",
+          "durationInMinutes": 40,
+          "priceInCents": 3500
+        },
+        "barber": {
+          "id": "BARBER_ID",
+          "name": "João Silva"
+        },
+        "customer": {
+          "id": "CUSTOMER_ID",
+          "name": "Maria Souza",
+          "phone": "88999999999"
+        }
+      }
+    ]
+  },
+  "upcomingAppointments": [],
+  "monthlyRevenueInCents": 3500
+}
+```
+
+`monthlyRevenueInCents` considera apenas agendamentos `completed` do mês atual e soma o valor do serviço em centavos.
+
 ## Horários de funcionamento
 
 As rotas de horários de funcionamento são autenticadas e sempre usam a barbearia vinculada ao usuário logado. Não é possível alterar horários de outra barbearia pelo payload.
