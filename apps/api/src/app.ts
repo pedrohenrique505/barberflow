@@ -16,6 +16,8 @@ import { barbershopRoutes } from "./modules/barbershops/barbershop.routes.js";
 import { BarbershopError } from "./modules/barbershops/barbershop.service.js";
 import { blockedTimeRoutes } from "./modules/blocked-times/blocked-time.routes.js";
 import { BlockedTimeError } from "./modules/blocked-times/blocked-time.service.js";
+import { customerRoutes } from "./modules/customers/customer.routes.js";
+import { CustomerError } from "./modules/customers/customer.service.js";
 import { serviceRoutes } from "./modules/services/service.routes.js";
 import { ServiceError } from "./modules/services/service.service.js";
 import { workingHourRoutes } from "./modules/working-hours/working-hour.routes.js";
@@ -38,6 +40,7 @@ export function buildApp() {
   app.register(barbershopRoutes);
   app.register(serviceRoutes);
   app.register(barberRoutes);
+  app.register(customerRoutes);
   app.register(workingHourRoutes);
   app.register(blockedTimeRoutes);
 
@@ -49,6 +52,7 @@ export function buildApp() {
       error instanceof BarbershopError ||
       error instanceof ServiceError ||
       error instanceof BarberError ||
+      error instanceof CustomerError ||
       error instanceof WorkingHourError ||
       error instanceof BlockedTimeError
     ) {

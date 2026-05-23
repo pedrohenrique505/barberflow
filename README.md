@@ -745,6 +745,100 @@ Resposta esperada:
 }
 ```
 
+## Clientes
+
+Clientes são criados ou reutilizados automaticamente durante o agendamento público, usando o telefone como identificador principal dentro de cada barbearia.
+
+### Listar clientes
+
+Esta rota exige autenticação e retorna apenas clientes da barbearia do usuário logado.
+
+```bash
+curl "http://localhost:3333/customers?search=maria&phone=8899" \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI"
+```
+
+Os filtros `search` e `phone` são opcionais. `search` busca por nome ou telefone.
+
+Resposta esperada:
+
+```json
+[
+  {
+    "id": "CUSTOMER_ID",
+    "name": "Maria Souza",
+    "phone": "88999999999",
+    "createdAt": "2026-05-22T08:00:00.000Z",
+    "updatedAt": "2026-05-22T08:00:00.000Z"
+  }
+]
+```
+
+### Buscar cliente por id
+
+Esta rota exige autenticação. O cliente precisa pertencer à barbearia do usuário logado.
+
+```bash
+curl http://localhost:3333/customers/CUSTOMER_ID \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI"
+```
+
+Resposta esperada:
+
+```json
+{
+  "id": "CUSTOMER_ID",
+  "name": "Maria Souza",
+  "phone": "88999999999",
+  "createdAt": "2026-05-22T08:00:00.000Z",
+  "updatedAt": "2026-05-22T08:00:00.000Z",
+  "appointments": [
+    {
+      "id": "APPOINTMENT_ID",
+      "status": "scheduled",
+      "startAt": "2026-05-22T08:00:00.000Z",
+      "endAt": "2026-05-22T08:40:00.000Z",
+      "service": {
+        "id": "SERVICE_ID",
+        "name": "Corte masculino",
+        "durationInMinutes": 40,
+        "priceInCents": 3500
+      },
+      "barber": {
+        "id": "BARBER_ID",
+        "name": "João Silva"
+      }
+    }
+  ]
+}
+```
+
+### Atualizar cliente
+
+Esta rota exige autenticação. Não é possível alterar `barbershopId`, e o telefone não pode duplicar outro cliente da mesma barbearia.
+
+```bash
+curl -X PUT http://localhost:3333/customers/CUSTOMER_ID \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI" \
+  -d '{
+    "name": "Maria Souza",
+    "phone": "88999999999"
+  }'
+```
+
+Resposta esperada:
+
+```json
+{
+  "id": "CUSTOMER_ID",
+  "name": "Maria Souza",
+  "phone": "88999999999",
+  "createdAt": "2026-05-22T08:00:00.000Z",
+  "updatedAt": "2026-05-22T08:10:00.000Z"
+}
+```
+
 ## Horários de funcionamento
 
 As rotas de horários de funcionamento são autenticadas e sempre usam a barbearia vinculada ao usuário logado. Não é possível alterar horários de outra barbearia pelo payload.
