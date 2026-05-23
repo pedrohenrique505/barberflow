@@ -561,6 +561,48 @@ Resposta esperada:
 ]
 ```
 
+## Disponibilidade de horários
+
+A rota de disponibilidade é pública e não exige autenticação. Ela calcula os horários disponíveis usando a barbearia, serviço, barbeiro, data, horários de funcionamento, bloqueios e agendamentos já existentes.
+
+```bash
+curl "http://localhost:3333/availability?barbershopSlug=barbearia-do-ze&serviceId=SERVICE_ID&barberId=BARBER_ID&date=2026-05-22"
+```
+
+Regras aplicadas:
+
+- `barbershopSlug`, `serviceId`, `barberId` e `date` são obrigatórios.
+- `date` deve estar no formato `YYYY-MM-DD`.
+- O serviço precisa pertencer à barbearia e estar ativo.
+- O barbeiro precisa pertencer à barbearia e estar ativo.
+- Se a barbearia estiver fechada no dia informado, `slots` retorna vazio.
+- Agendamentos `scheduled` e `confirmed` bloqueiam horários do barbeiro.
+- Agendamentos `cancelled`, `completed` e `no_show` não bloqueiam horários.
+- Bloqueios gerais da barbearia e bloqueios específicos do barbeiro removem horários disponíveis.
+
+Resposta esperada:
+
+```json
+{
+  "date": "2026-05-22",
+  "service": {
+    "id": "SERVICE_ID",
+    "durationInMinutes": 40
+  },
+  "barber": {
+    "id": "BARBER_ID",
+    "name": "João Silva"
+  },
+  "slots": [
+    {
+      "startAt": "2026-05-22T08:00:00.000Z",
+      "endAt": "2026-05-22T08:40:00.000Z",
+      "label": "08:00"
+    }
+  ]
+}
+```
+
 ## Horários de funcionamento
 
 As rotas de horários de funcionamento são autenticadas e sempre usam a barbearia vinculada ao usuário logado. Não é possível alterar horários de outra barbearia pelo payload.
