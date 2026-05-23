@@ -1,0 +1,17 @@
+const AUTH_TOKEN_KEY = "barberflow.authToken";
+
+export function getAuthToken() {
+  return localStorage.getItem(AUTH_TOKEN_KEY);
+}
+
+export function hasAuthToken() {
+  return Boolean(getAuthToken());
+}
+
+export function saveAuthToken(token: string) {
+  localStorage.setItem(AUTH_TOKEN_KEY, token);
+}
+
+export function clearAuthToken() {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+}

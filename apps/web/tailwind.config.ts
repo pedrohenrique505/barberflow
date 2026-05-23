@@ -13,7 +13,10 @@ export default {
         text: {
           primary: "#1F1D1B",
           secondary: "#6F6760",
+          muted: "#9A9187",
         },
+        danger: "#963028",
+        "danger-soft": "#FFF1EE",
       },
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],

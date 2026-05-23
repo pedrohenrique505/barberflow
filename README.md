@@ -74,6 +74,18 @@ PORT=3333
 NODE_ENV=development
 ```
 
+As variáveis de ambiente do frontend ficam em `apps/web/.env`.
+
+```bash
+cp apps/web/.env.example apps/web/.env
+```
+
+Variável esperada:
+
+```env
+VITE_API_URL=http://localhost:3333
+```
+
 ## Ambiente local
 
 1. Instale as dependências:
@@ -121,7 +133,21 @@ pnpm --filter api prisma:migrate
 pnpm --filter api dev
 ```
 
-7. Teste o health check da API:
+7. Em outro terminal, copie o ambiente do frontend:
+
+```bash
+cp apps/web/.env.example apps/web/.env
+```
+
+8. Inicie o frontend administrativo:
+
+```bash
+pnpm --filter web dev
+```
+
+O painel fica disponível em `http://localhost:5173`.
+
+9. Teste o health check da API:
 
 ```bash
 curl http://localhost:3333/health
@@ -135,7 +161,7 @@ Resposta esperada:
 }
 ```
 
-8. Teste o health check do banco:
+10. Teste o health check do banco:
 
 ```bash
 curl http://localhost:3333/health/db
@@ -149,6 +175,26 @@ Resposta esperada:
   "database": "connected"
 }
 ```
+
+## Frontend administrativo
+
+O frontend em `apps/web` usa React, Vite, TypeScript, Tailwind CSS, React Router, TanStack Query, React Hook Form e Zod.
+
+Comandos principais:
+
+```bash
+pnpm --filter web dev
+pnpm --filter web typecheck
+pnpm --filter web build
+```
+
+Rotas iniciais:
+
+- `/login`: autentica com `POST /auth/login`, salva o token no `localStorage` e redireciona para o dashboard.
+- `/register`: cria conta com `POST /auth/register`, salva o token no `localStorage` e redireciona para o dashboard.
+- `/dashboard`: rota protegida que consome `GET /dashboard/metrics`.
+
+O dashboard só abre quando existe token salvo. O botão “Sair” limpa o token local e retorna para `/login`.
 
 ## Autenticação da API
 
