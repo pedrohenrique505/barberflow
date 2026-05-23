@@ -70,3 +70,7 @@ docker-compose.override.yml
 .turbo/
 *:Zone.Identifier
 *:Zone.Identifier
+
+# Local agents/skills
+.agents/
+skills-lock.json
