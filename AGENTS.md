@@ -36,3 +36,23 @@ Follow Conventional Commits, as in `feat: base do frontend administrativo implem
 ## Security & Configuration Tips
 
 Never commit real `.env` files, credentials, database dumps, or generated secrets. Admin routes must preserve tenant isolation by scoping data to the authenticated barbershop owner. Validate all incoming API input server-side, hash passwords, and avoid leaking stack traces to clients.
+
+## Uso de skills
+
+Use skills somente quando forem claramente necessárias para a tarefa atual.
+
+Skills de interface/design, como `emilkowalski/skill` e `jakubkrehel/make-interfaces-feel-better`, devem ser usadas apenas em tarefas que envolvam:
+
+- criação ou refinamento de UI;
+- layout;
+- design system;
+- componentes visuais;
+- animações;
+- microinterações;
+- responsividade;
+- acessibilidade visual;
+- melhoria de experiência do usuário.
+
+Não use skills de interface/design em tarefas puramente backend, banco de dados, Prisma, autenticação, Docker, documentação operacional, scripts, correções simples de API ou refactors sem impacto visual.
+
+Quando uma skill for usada, explique brevemente no plano por que ela é relevante para a tarefa.
