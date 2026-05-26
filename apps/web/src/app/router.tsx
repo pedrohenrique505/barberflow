@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 
 import { AdminLayout } from "../components/layout/AdminLayout";
 import { hasAuthToken } from "../lib/auth";
+import { AppointmentsPage } from "../pages/AppointmentsPage";
 import { BarbersPage } from "../pages/BarbersPage";
 import { CustomersPage } from "../pages/CustomersPage";
 import { DashboardPage } from "../pages/DashboardPage";
@@ -52,6 +53,10 @@ export const router = createBrowserRouter([
           {
             path: "/dashboard/clientes",
             element: <CustomersPage />,
+          },
+          {
+            path: "/dashboard/agendamentos",
+            element: <AppointmentsPage />,
           },
         ],
       },

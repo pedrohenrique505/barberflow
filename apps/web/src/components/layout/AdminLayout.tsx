@@ -18,9 +18,9 @@ const navigationItems = [
   { label: "Agenda", to: "/agenda", icon: CalendarDays, enabled: false },
   {
     label: "Agendamentos",
-    to: "/agendamentos",
+    to: "/dashboard/agendamentos",
     icon: CalendarCheck,
-    enabled: false,
+    enabled: true,
   },
   { label: "Serviços", to: "/dashboard/servicos", icon: Scissors, enabled: true },
   {
