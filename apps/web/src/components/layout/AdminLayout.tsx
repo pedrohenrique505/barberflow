@@ -22,7 +22,7 @@ const navigationItems = [
     icon: CalendarCheck,
     enabled: false,
   },
-  { label: "Serviços", to: "/servicos", icon: Scissors, enabled: false },
+  { label: "Serviços", to: "/dashboard/servicos", icon: Scissors, enabled: true },
   { label: "Barbeiros", to: "/barbeiros", icon: UserRound, enabled: false },
   { label: "Clientes", to: "/clientes", icon: UsersRound, enabled: false },
   { label: "Configurações", to: "/configuracoes", icon: Settings, enabled: false },

@@ -6,6 +6,7 @@ import { DashboardPage } from "../pages/DashboardPage";
 import { LoginPage } from "../pages/LoginPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { RegisterPage } from "../pages/RegisterPage";
+import { ServicesPage } from "../pages/ServicesPage";
 
 function ProtectedRoute() {
   if (!hasAuthToken()) {
@@ -37,6 +38,10 @@ export const router = createBrowserRouter([
           {
             path: "/dashboard",
             element: <DashboardPage />,
+          },
+          {
+            path: "/dashboard/servicos",
+            element: <ServicesPage />,
           },
         ],
       },
