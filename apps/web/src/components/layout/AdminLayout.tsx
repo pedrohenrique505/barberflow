@@ -29,7 +29,12 @@ const navigationItems = [
     icon: UserRound,
     enabled: true,
   },
-  { label: "Clientes", to: "/clientes", icon: UsersRound, enabled: false },
+  {
+    label: "Clientes",
+    to: "/dashboard/clientes",
+    icon: UsersRound,
+    enabled: true,
+  },
   { label: "Configurações", to: "/configuracoes", icon: Settings, enabled: false },
 ];
 

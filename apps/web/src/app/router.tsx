@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 import { AdminLayout } from "../components/layout/AdminLayout";
 import { hasAuthToken } from "../lib/auth";
 import { BarbersPage } from "../pages/BarbersPage";
+import { CustomersPage } from "../pages/CustomersPage";
 import { DashboardPage } from "../pages/DashboardPage";
 import { LoginPage } from "../pages/LoginPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
@@ -47,6 +48,10 @@ export const router = createBrowserRouter([
           {
             path: "/dashboard/barbeiros",
             element: <BarbersPage />,
+          },
+          {
+            path: "/dashboard/clientes",
+            element: <CustomersPage />,
           },
         ],
       },
