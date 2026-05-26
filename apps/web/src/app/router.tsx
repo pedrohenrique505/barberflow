@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 
 import { AdminLayout } from "../components/layout/AdminLayout";
 import { hasAuthToken } from "../lib/auth";
+import { BarbersPage } from "../pages/BarbersPage";
 import { DashboardPage } from "../pages/DashboardPage";
 import { LoginPage } from "../pages/LoginPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
@@ -42,6 +43,10 @@ export const router = createBrowserRouter([
           {
             path: "/dashboard/servicos",
             element: <ServicesPage />,
+          },
+          {
+            path: "/dashboard/barbeiros",
+            element: <BarbersPage />,
           },
         ],
       },

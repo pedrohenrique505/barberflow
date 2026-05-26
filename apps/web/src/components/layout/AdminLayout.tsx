@@ -23,7 +23,12 @@ const navigationItems = [
     enabled: false,
   },
   { label: "Serviços", to: "/dashboard/servicos", icon: Scissors, enabled: true },
-  { label: "Barbeiros", to: "/barbeiros", icon: UserRound, enabled: false },
+  {
+    label: "Barbeiros",
+    to: "/dashboard/barbeiros",
+    icon: UserRound,
+    enabled: true,
+  },
   { label: "Clientes", to: "/clientes", icon: UsersRound, enabled: false },
   { label: "Configurações", to: "/configuracoes", icon: Settings, enabled: false },
 ];
