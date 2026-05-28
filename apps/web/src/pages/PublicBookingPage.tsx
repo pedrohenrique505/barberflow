@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   CalendarDays,
   Check,
@@ -10,6 +11,8 @@ import {
 } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useForm, type FieldErrors, type UseFormRegister } from "react-hook-form";
+import { z } from "zod";
 
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -37,6 +40,21 @@ const steps = [
 
 type Step = (typeof steps)[number];
 
+const customerDataSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Informe seu nome.")
+    .min(2, "Informe um nome válido."),
+  phone: z
+    .string()
+    .trim()
+    .min(1, "Informe seu telefone.")
+    .min(8, "Informe um telefone válido."),
+});
+
+type CustomerDataForm = z.infer<typeof customerDataSchema>;
+
 export function PublicBookingPage() {
   const { slug = "" } = useParams();
   const [selectedServiceId, setSelectedServiceId] = useState("");
@@ -58,6 +76,18 @@ export function PublicBookingPage() {
   const barbersQuery = useQuery({
     queryKey: ["public-barbers", slug],
     queryFn: () => getPublicBarbers(slug),
+  });
+  const {
+    formState: { errors: customerErrors },
+    getValues: getCustomerValues,
+    register: registerCustomer,
+    trigger: triggerCustomerValidation,
+  } = useForm<CustomerDataForm>({
+    defaultValues: {
+      name: customerName,
+      phone: customerPhone,
+    },
+    resolver: zodResolver(customerDataSchema),
   });
 
   const isLoading =
@@ -117,9 +147,22 @@ export function PublicBookingPage() {
     setCurrentStep((stepIndex) => Math.max(stepIndex - 1, 0));
   }
 
-  function handleContinue() {
+  async function handleContinue() {
     if (!canContinue || isLastStep) {
       return;
+    }
+
+    if (step === "Seus dados") {
+      const isCustomerDataValid = await triggerCustomerValidation();
+
+      if (!isCustomerDataValid) {
+        return;
+      }
+
+      const customerData = getCustomerValues();
+
+      setCustomerName(customerData.name.trim());
+      setCustomerPhone(customerData.phone.trim());
     }
 
     setCurrentStep((stepIndex) => Math.min(stepIndex + 1, steps.length - 1));
@@ -186,18 +229,23 @@ export function PublicBookingPage() {
               ) : null}
 
               {step === "Seus dados" ? (
-                <PlaceholderStep
-                  icon={UserRound}
-                  title="Seus dados"
-                  description="Os dados do cliente serão preenchidos em uma próxima etapa."
+                <CustomerDataStep
+                  errors={customerErrors}
+                  register={registerCustomer}
+                  onChangeName={setCustomerName}
+                  onChangePhone={setCustomerPhone}
                 />
               ) : null}
 
               {step === "Confirmação" ? (
-                <PlaceholderStep
-                  icon={Check}
-                  title="Confirmação"
-                  description="A confirmação do agendamento será implementada em uma próxima etapa."
+                <ConfirmationStep
+                  barbershopName={barbershop.name}
+                  customerName={customerName}
+                  customerPhone={customerPhone}
+                  selectedBarberName={selectedBarber?.name ?? "Não escolhido"}
+                  selectedDate={selectedDate}
+                  selectedService={selectedService}
+                  selectedSlot={selectedSlot}
                 />
               ) : null}
             </section>
@@ -534,21 +582,103 @@ function DateTimeStep({
   );
 }
 
-function PlaceholderStep({
-  description,
-  icon,
-  title,
+function CustomerDataStep({
+  errors,
+  register,
+  onChangeName,
+  onChangePhone,
 }: {
-  description: string;
-  icon: LucideIcon;
-  title: string;
+  errors: FieldErrors<CustomerDataForm>;
+  register: UseFormRegister<CustomerDataForm>;
+  onChangeName: (name: string) => void;
+  onChangePhone: (phone: string) => void;
 }) {
   return (
     <div>
-      <StepHeading description="Esta parte do fluxo será conectada nos próximos passos." icon={icon} title={title} />
-      <div className="mt-5 rounded-lg border border-dashed border-border bg-surface-muted px-5 py-10 text-center">
-        <p className="mx-auto max-w-md text-sm leading-6 text-text-secondary">
-          {description}
+      <StepHeading
+        description="Informe seus dados para identificarmos o agendamento."
+        icon={UserRound}
+        title="Seus dados"
+      />
+
+      <form className="mt-5 max-w-xl space-y-4" onSubmit={(event) => event.preventDefault()}>
+        <Input
+          error={errors.name?.message}
+          label="Nome"
+          placeholder="Seu nome"
+          {...register("name", {
+            onChange: (event) => onChangeName(event.target.value),
+          })}
+        />
+
+        <Input
+          error={errors.phone?.message}
+          label="Telefone"
+          placeholder="Seu telefone"
+          type="tel"
+          {...register("phone", {
+            onChange: (event) => onChangePhone(event.target.value),
+          })}
+        />
+      </form>
+
+      <p className="mt-5 rounded-md bg-surface-muted px-4 py-3 text-sm leading-6 text-text-secondary">
+        Os dados serão usados apenas para registrar e localizar seu horário na
+        barbearia.
+      </p>
+    </div>
+  );
+}
+
+function ConfirmationStep({
+  barbershopName,
+  customerName,
+  customerPhone,
+  selectedBarberName,
+  selectedDate,
+  selectedService,
+  selectedSlot,
+}: {
+  barbershopName: string;
+  customerName: string;
+  customerPhone: string;
+  selectedBarberName: string;
+  selectedDate: string;
+  selectedService: PublicService | undefined;
+  selectedSlot: PublicAvailabilitySlot | null;
+}) {
+  return (
+    <div>
+      <StepHeading
+        description="Revise as informações antes de finalizar o agendamento."
+        icon={Check}
+        title="Confirmação"
+      />
+
+      <div className="mt-5 rounded-lg border border-border bg-surface p-4 sm:p-5">
+        <dl className="grid gap-4 text-sm sm:grid-cols-2">
+          <SummaryLine label="Barbearia" value={barbershopName} />
+          <SummaryLine label="Serviço" value={selectedService?.name ?? "Não escolhido"} />
+          <SummaryLine label="Barbeiro" value={selectedBarberName} />
+          <SummaryLine label="Data" value={formatDate(selectedDate) || "Não escolhida"} />
+          <SummaryLine label="Horário" value={selectedSlot?.label ?? "Não escolhido"} />
+          <SummaryLine label="Nome" value={customerName || "Não informado"} />
+          <SummaryLine label="Telefone" value={customerPhone || "Não informado"} />
+          {selectedService ? (
+            <SummaryLine
+              label="Preço"
+              value={formatCurrency(selectedService.priceInCents)}
+            />
+          ) : null}
+        </dl>
+      </div>
+
+      <div className="mt-5 rounded-lg bg-surface-muted p-4">
+        <Button className="w-full sm:w-fit" disabled>
+          Confirmar agendamento
+        </Button>
+        <p className="mt-3 text-sm leading-6 text-text-secondary">
+          A criação do agendamento será implementada no próximo passo.
         </p>
       </div>
     </div>
