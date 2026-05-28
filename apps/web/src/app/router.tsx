@@ -10,6 +10,7 @@ import { DashboardPage } from "../pages/DashboardPage";
 import { LoginPage } from "../pages/LoginPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { PublicBookingPage } from "../pages/PublicBookingPage";
+import { PublicBookingSuccessPage } from "../pages/PublicBookingSuccessPage";
 import { PublicBarbershopPage } from "../pages/PublicBarbershopPage";
 import { RegisterPage } from "../pages/RegisterPage";
 import { ServicesPage } from "../pages/ServicesPage";
@@ -42,6 +43,10 @@ export const router = createBrowserRouter([
   {
     path: "/b/:slug/agendar",
     element: <PublicBookingPage />,
+  },
+  {
+    path: "/agendamento/sucesso",
+    element: <PublicBookingSuccessPage />,
   },
   {
     element: <ProtectedRoute />,

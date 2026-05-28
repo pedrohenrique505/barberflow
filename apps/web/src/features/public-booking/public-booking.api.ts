@@ -49,11 +49,47 @@ export type PublicAvailability = {
   slots: PublicAvailabilitySlot[];
 };
 
+export type PublicAppointment = {
+  id: string;
+  status: "scheduled" | "confirmed" | "completed" | "cancelled" | "no_show";
+  startAt: string;
+  endAt: string;
+  service: {
+    id: string;
+    name: string;
+    durationInMinutes: number;
+    priceInCents: number;
+  };
+  barber: {
+    id: string;
+    name: string;
+  };
+  customer: {
+    id: string;
+    name: string;
+    phone: string;
+  };
+  barbershop: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+};
+
 type GetAvailabilityParams = {
   barbershopSlug: string;
   serviceId: string;
   barberId: string;
   date: string;
+};
+
+type CreateAppointmentPayload = {
+  barbershopSlug: string;
+  serviceId: string;
+  barberId: string;
+  startAt: string;
+  customerName: string;
+  customerPhone: string;
 };
 
 export function getPublicBarbershop(slug: string) {
@@ -82,4 +118,11 @@ export function getAvailability({
   });
 
   return apiRequest<PublicAvailability>(`/availability?${params.toString()}`);
+}
+
+export function createAppointment(payload: CreateAppointmentPayload) {
+  return apiRequest<{ appointment: PublicAppointment }>("/appointments", {
+    body: payload,
+    method: "POST",
+  });
 }

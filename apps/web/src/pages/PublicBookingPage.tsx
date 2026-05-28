@@ -9,8 +9,8 @@ import {
   UserRound,
   type LucideIcon,
 } from "lucide-react";
-import { useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useNavigate, useParams } from "react-router-dom";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useForm, type FieldErrors, type UseFormRegister } from "react-hook-form";
 import { z } from "zod";
 
@@ -21,6 +21,7 @@ import { ErrorState } from "../components/ui/ErrorState";
 import { Input } from "../components/ui/Input";
 import { LoadingState } from "../components/ui/LoadingState";
 import {
+  createAppointment,
   getAvailability,
   getPublicBarbers,
   getPublicBarbershop,
@@ -56,6 +57,7 @@ const customerDataSchema = z.object({
 type CustomerDataForm = z.infer<typeof customerDataSchema>;
 
 export function PublicBookingPage() {
+  const navigate = useNavigate();
   const { slug = "" } = useParams();
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [selectedBarberId, setSelectedBarberId] = useState("");
@@ -63,6 +65,7 @@ export function PublicBookingPage() {
   const [selectedSlot, setSelectedSlot] = useState<PublicAvailabilitySlot | null>(null);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [confirmationError, setConfirmationError] = useState("");
   const [currentStep, setCurrentStep] = useState(0);
 
   const barbershopQuery = useQuery({
@@ -88,6 +91,14 @@ export function PublicBookingPage() {
       phone: customerPhone,
     },
     resolver: zodResolver(customerDataSchema),
+  });
+  const createAppointmentMutation = useMutation({
+    mutationFn: createAppointment,
+    onSuccess: ({ appointment }) => {
+      navigate("/agendamento/sucesso", {
+        state: { appointment },
+      });
+    },
   });
 
   const isLoading =
@@ -144,6 +155,7 @@ export function PublicBookingPage() {
   }
 
   function handleBack() {
+    setConfirmationError("");
     setCurrentStep((stepIndex) => Math.max(stepIndex - 1, 0));
   }
 
@@ -166,6 +178,32 @@ export function PublicBookingPage() {
     }
 
     setCurrentStep((stepIndex) => Math.min(stepIndex + 1, steps.length - 1));
+  }
+
+  function handleConfirmAppointment() {
+    setConfirmationError("");
+
+    if (!selectedServiceId || !selectedBarberId || !selectedDate || !selectedSlot) {
+      setConfirmationError("Revise serviço, barbeiro, data e horário antes de confirmar.");
+      return;
+    }
+
+    const trimmedCustomerName = customerName.trim();
+    const trimmedCustomerPhone = customerPhone.trim();
+
+    if (!trimmedCustomerName || !trimmedCustomerPhone) {
+      setConfirmationError("Informe nome e telefone antes de confirmar.");
+      return;
+    }
+
+    createAppointmentMutation.mutate({
+      barberId: selectedBarberId,
+      barbershopSlug: slug,
+      customerName: trimmedCustomerName,
+      customerPhone: trimmedCustomerPhone,
+      serviceId: selectedServiceId,
+      startAt: selectedSlot.startAt,
+    });
   }
 
   return (
@@ -242,6 +280,14 @@ export function PublicBookingPage() {
                   barbershopName={barbershop.name}
                   customerName={customerName}
                   customerPhone={customerPhone}
+                  error={
+                    confirmationError ||
+                    (createAppointmentMutation.error instanceof Error
+                      ? createAppointmentMutation.error.message
+                      : "")
+                  }
+                  isSubmitting={createAppointmentMutation.isPending}
+                  onConfirm={handleConfirmAppointment}
                   selectedBarberName={selectedBarber?.name ?? "Não escolhido"}
                   selectedDate={selectedDate}
                   selectedService={selectedService}
@@ -272,13 +318,15 @@ export function PublicBookingPage() {
             >
               Voltar
             </Button>
-            <Button
-              className="w-full sm:w-fit"
-              disabled={!canContinue || isLastStep}
-              onClick={handleContinue}
-            >
-              Continuar
-            </Button>
+            {!isLastStep ? (
+              <Button
+                className="w-full sm:w-fit"
+                disabled={!canContinue}
+                onClick={handleContinue}
+              >
+                Continuar
+              </Button>
+            ) : null}
           </footer>
         </Card>
       </div>
@@ -634,6 +682,9 @@ function ConfirmationStep({
   barbershopName,
   customerName,
   customerPhone,
+  error,
+  isSubmitting,
+  onConfirm,
   selectedBarberName,
   selectedDate,
   selectedService,
@@ -642,6 +693,9 @@ function ConfirmationStep({
   barbershopName: string;
   customerName: string;
   customerPhone: string;
+  error: string;
+  isSubmitting: boolean;
+  onConfirm: () => void;
   selectedBarberName: string;
   selectedDate: string;
   selectedService: PublicService | undefined;
@@ -674,11 +728,23 @@ function ConfirmationStep({
       </div>
 
       <div className="mt-5 rounded-lg bg-surface-muted p-4">
-        <Button className="w-full sm:w-fit" disabled>
+        {error ? (
+          <div className="mb-4">
+            <ErrorState message={error} title="Não foi possível confirmar" />
+          </div>
+        ) : null}
+
+        <Button
+          className="w-full sm:w-fit"
+          disabled={isSubmitting}
+          onClick={onConfirm}
+        >
           Confirmar agendamento
         </Button>
         <p className="mt-3 text-sm leading-6 text-text-secondary">
-          A criação do agendamento será implementada no próximo passo.
+          {isSubmitting
+            ? "Enviando seu agendamento..."
+            : "Ao confirmar, seu horário será enviado para a barbearia."}
         </p>
       </div>
     </div>
