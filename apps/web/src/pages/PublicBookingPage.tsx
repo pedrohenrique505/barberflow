@@ -15,12 +15,15 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { ErrorState } from "../components/ui/ErrorState";
+import { Input } from "../components/ui/Input";
 import { LoadingState } from "../components/ui/LoadingState";
 import {
+  getAvailability,
   getPublicBarbers,
   getPublicBarbershop,
   getPublicServices,
   type PublicBarber,
+  type PublicAvailabilitySlot,
   type PublicService,
 } from "../features/public-booking/public-booking.api";
 
@@ -39,7 +42,7 @@ export function PublicBookingPage() {
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [selectedBarberId, setSelectedBarberId] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
-  const [selectedSlot, setSelectedSlot] = useState("");
+  const [selectedSlot, setSelectedSlot] = useState<PublicAvailabilitySlot | null>(null);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [currentStep, setCurrentStep] = useState(0);
@@ -93,8 +96,22 @@ export function PublicBookingPage() {
   const isLastStep = currentStep === steps.length - 1;
   const canContinue = getCanContinue(step, {
     selectedBarberId,
+    selectedDate,
     selectedServiceId,
+    selectedSlot,
   });
+
+  function handleSelectService(serviceId: string) {
+    setSelectedServiceId(serviceId);
+    setSelectedDate("");
+    setSelectedSlot(null);
+  }
+
+  function handleSelectBarber(barberId: string) {
+    setSelectedBarberId(barberId);
+    setSelectedDate("");
+    setSelectedSlot(null);
+  }
 
   function handleBack() {
     setCurrentStep((stepIndex) => Math.max(stepIndex - 1, 0));
@@ -141,7 +158,7 @@ export function PublicBookingPage() {
                 <ServiceStep
                   selectedServiceId={selectedServiceId}
                   services={services}
-                  onSelect={setSelectedServiceId}
+                  onSelect={handleSelectService}
                 />
               ) : null}
 
@@ -149,15 +166,22 @@ export function PublicBookingPage() {
                 <BarberStep
                   barbers={barbers}
                   selectedBarberId={selectedBarberId}
-                  onSelect={setSelectedBarberId}
+                  onSelect={handleSelectBarber}
                 />
               ) : null}
 
               {step === "Data e horário" ? (
-                <PlaceholderStep
-                  icon={CalendarDays}
-                  title="Data e horário"
-                  description="A seleção de data e horários disponíveis será implementada no próximo passo."
+                <DateTimeStep
+                  barbershopSlug={slug}
+                  selectedBarberId={selectedBarberId}
+                  selectedDate={selectedDate}
+                  selectedServiceId={selectedServiceId}
+                  selectedSlot={selectedSlot}
+                  onSelectDate={(date) => {
+                    setSelectedDate(date);
+                    setSelectedSlot(null);
+                  }}
+                  onSelectSlot={setSelectedSlot}
                 />
               ) : null}
 
@@ -183,8 +207,8 @@ export function PublicBookingPage() {
               <dl className="mt-4 space-y-4 text-sm">
                 <SummaryLine label="Serviço" value={selectedService?.name ?? "Não escolhido"} />
                 <SummaryLine label="Barbeiro" value={selectedBarber?.name ?? "Não escolhido"} />
-                <SummaryLine label="Data" value={selectedDate || "Próxima etapa"} />
-                <SummaryLine label="Horário" value={selectedSlot || "Próxima etapa"} />
+                <SummaryLine label="Data" value={formatDate(selectedDate) || "Próxima etapa"} />
+                <SummaryLine label="Horário" value={selectedSlot?.label ?? "Próxima etapa"} />
                 <SummaryLine label="Cliente" value={customerName || "Próxima etapa"} />
                 <SummaryLine label="Telefone" value={customerPhone || "Próxima etapa"} />
               </dl>
@@ -371,6 +395,145 @@ function BarberStep({
   );
 }
 
+function DateTimeStep({
+  barbershopSlug,
+  selectedBarberId,
+  selectedDate,
+  selectedServiceId,
+  selectedSlot,
+  onSelectDate,
+  onSelectSlot,
+}: {
+  barbershopSlug: string;
+  selectedBarberId: string;
+  selectedDate: string;
+  selectedServiceId: string;
+  selectedSlot: PublicAvailabilitySlot | null;
+  onSelectDate: (date: string) => void;
+  onSelectSlot: (slot: PublicAvailabilitySlot) => void;
+}) {
+  const canFetchAvailability = Boolean(
+    barbershopSlug && selectedServiceId && selectedBarberId && selectedDate,
+  );
+  const availabilityQuery = useQuery({
+    enabled: canFetchAvailability,
+    queryKey: [
+      "public-availability",
+      barbershopSlug,
+      selectedServiceId,
+      selectedBarberId,
+      selectedDate,
+    ],
+    queryFn: () =>
+      getAvailability({
+        barberId: selectedBarberId,
+        barbershopSlug,
+        date: selectedDate,
+        serviceId: selectedServiceId,
+      }),
+  });
+  const slots = availabilityQuery.data?.slots ?? [];
+
+  return (
+    <div>
+      <StepHeading
+        description="Escolha a data e depois toque em um horário disponível."
+        icon={CalendarDays}
+        title="Data e horário"
+      />
+
+      <div className="mt-5 max-w-xs">
+        <Input
+          disabled={!selectedServiceId || !selectedBarberId}
+          label="Data do atendimento"
+          name="booking-date"
+          onChange={(event) => onSelectDate(event.target.value)}
+          type="date"
+          value={selectedDate}
+        />
+      </div>
+
+      {!selectedServiceId || !selectedBarberId ? (
+        <p className="mt-4 rounded-md bg-surface-muted px-4 py-3 text-sm leading-6 text-text-secondary">
+          Selecione um serviço e um barbeiro antes de buscar horários disponíveis.
+        </p>
+      ) : null}
+
+      <div className="mt-6">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-text-primary">
+            Horários disponíveis
+          </h3>
+          {selectedDate ? (
+            <span className="text-xs font-medium text-text-secondary">
+              {formatDate(selectedDate)}
+            </span>
+          ) : null}
+        </div>
+
+        {!selectedDate ? (
+          <p className="mt-3 rounded-md border border-dashed border-border px-4 py-5 text-center text-sm text-text-secondary">
+            Selecione uma data e um horário disponível.
+          </p>
+        ) : null}
+
+        {availabilityQuery.isLoading ? (
+          <div className="mt-3">
+            <LoadingState label="Carregando horários disponíveis..." />
+          </div>
+        ) : null}
+
+        {availabilityQuery.isError ? (
+          <div className="mt-3">
+            <ErrorState
+              message="Não foi possível carregar os horários disponíveis. Tente novamente."
+              title="Erro ao buscar horários"
+            />
+          </div>
+        ) : null}
+
+        {selectedDate && availabilityQuery.isSuccess && slots.length === 0 ? (
+          <div className="mt-3">
+            <EmptyState
+              description="Tente escolher outra data para encontrar horários livres."
+              title="Nenhum horário disponível para esta data"
+            />
+          </div>
+        ) : null}
+
+        {slots.length > 0 ? (
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+            {slots.map((slot) => {
+              const isSelected = selectedSlot?.startAt === slot.startAt;
+
+              return (
+                <button
+                  className={`min-h-12 rounded-md border px-4 py-3 text-sm font-semibold transition-colors ${
+                    isSelected
+                      ? "border-primary bg-primary text-white"
+                      : "border-border bg-surface text-text-primary hover:bg-surface-muted"
+                  }`}
+                  key={slot.startAt}
+                  onClick={() => onSelectSlot(slot)}
+                  type="button"
+                >
+                  {slot.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {selectedDate && !selectedSlot ? (
+          <p className="mt-4 text-sm font-medium text-text-secondary">
+            Selecione uma data e um horário disponível.
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function PlaceholderStep({
   description,
   icon,
@@ -427,7 +590,12 @@ function SummaryLine({ label, value }: { label: string; value: string }) {
 
 function getCanContinue(
   step: Step,
-  state: { selectedBarberId: string; selectedServiceId: string },
+  state: {
+    selectedBarberId: string;
+    selectedDate: string;
+    selectedServiceId: string;
+    selectedSlot: PublicAvailabilitySlot | null;
+  },
 ) {
   if (step === "Serviço") {
     return state.selectedServiceId.length > 0;
@@ -435,6 +603,10 @@ function getCanContinue(
 
   if (step === "Barbeiro") {
     return state.selectedBarberId.length > 0;
+  }
+
+  if (step === "Data e horário") {
+    return state.selectedDate.length > 0 && state.selectedSlot !== null;
   }
 
   return true;
@@ -457,4 +629,23 @@ function formatCurrency(valueInCents: number) {
     currency: "BRL",
     style: "currency",
   }).format(valueInCents / 100);
+}
+
+function formatDate(date: string) {
+  if (!date) {
+    return "";
+  }
+
+  const parsedDate = new Date(`${date}T00:00:00.000Z`);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return date;
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "long",
+    timeZone: "UTC",
+    weekday: "long",
+  }).format(parsedDate);
 }
