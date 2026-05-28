@@ -9,6 +9,7 @@ import { CustomersPage } from "../pages/CustomersPage";
 import { DashboardPage } from "../pages/DashboardPage";
 import { LoginPage } from "../pages/LoginPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
+import { PublicBarbershopPage } from "../pages/PublicBarbershopPage";
 import { RegisterPage } from "../pages/RegisterPage";
 import { ServicesPage } from "../pages/ServicesPage";
 
@@ -32,6 +33,10 @@ export const router = createBrowserRouter([
   {
     path: "/register",
     element: <RegisterPage />,
+  },
+  {
+    path: "/b/:slug",
+    element: <PublicBarbershopPage />,
   },
   {
     element: <ProtectedRoute />,
