@@ -2,12 +2,15 @@ import { useQuery } from "@tanstack/react-query";
 import { CalendarClock, Scissors, TrendingUp, UserRound, UsersRound } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useNavigate } from "react-router-dom";
 
 import { apiRequest } from "../lib/api";
+import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { ErrorState } from "../components/ui/ErrorState";
 import { LoadingState } from "../components/ui/LoadingState";
+import { getMyBarbershop } from "../features/barbershops/barbershops.api";
 
 type DashboardMetrics = {
   summary: {
@@ -46,13 +49,59 @@ const statusLabels: Record<DashboardAppointment["status"], string> = {
 };
 
 export function DashboardPage() {
+  const navigate = useNavigate();
+
+  const barbershopQuery = useQuery({
+    queryKey: ["my-barbershop"],
+    queryFn: getMyBarbershop,
+  });
+
   const { data, error, isLoading } = useQuery({
     queryKey: ["dashboard-metrics"],
     queryFn: () => apiRequest<DashboardMetrics>("/dashboard/metrics"),
+    enabled: Boolean(barbershopQuery.data),
   });
 
-  if (isLoading) {
+  if (barbershopQuery.isLoading || isLoading) {
     return <LoadingState label="Carregando dashboard..." />;
+  }
+
+  if (barbershopQuery.error) {
+    return (
+      <ErrorState
+        message={
+          barbershopQuery.error instanceof Error
+            ? barbershopQuery.error.message
+            : "Não foi possível verificar a barbearia."
+        }
+        title="Erro ao carregar dashboard"
+      />
+    );
+  }
+
+  if (!barbershopQuery.data) {
+    return (
+      <div className="space-y-6">
+        <header>
+          <p className="text-sm font-medium text-text-secondary">Dashboard</p>
+          <h1 className="mt-2 text-balance text-3xl font-semibold tracking-normal">
+            Configure sua barbearia para começar
+          </h1>
+        </header>
+
+        <Card className="p-5 sm:p-6">
+          <EmptyState
+            description="Cadastre os dados básicos da barbearia para liberar a página pública, serviços, barbeiros e métricas do painel."
+            title="Sua barbearia ainda não foi configurada"
+          />
+          <div className="mt-5 flex justify-center">
+            <Button onClick={() => navigate("/dashboard/configuracoes")}>
+              Configurar barbearia
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
   }
 
   if (error) {

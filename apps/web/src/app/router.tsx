@@ -14,6 +14,7 @@ import { PublicBookingSuccessPage } from "../pages/PublicBookingSuccessPage";
 import { PublicBarbershopPage } from "../pages/PublicBarbershopPage";
 import { RegisterPage } from "../pages/RegisterPage";
 import { ServicesPage } from "../pages/ServicesPage";
+import { SettingsPage } from "../pages/SettingsPage";
 
 function ProtectedRoute() {
   if (!hasAuthToken()) {
@@ -77,6 +78,10 @@ export const router = createBrowserRouter([
           {
             path: "/dashboard/agendamentos",
             element: <AppointmentsPage />,
+          },
+          {
+            path: "/dashboard/configuracoes",
+            element: <SettingsPage />,
           },
         ],
       },

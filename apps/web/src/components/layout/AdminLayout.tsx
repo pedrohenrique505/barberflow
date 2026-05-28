@@ -35,7 +35,12 @@ const navigationItems = [
     icon: UsersRound,
     enabled: true,
   },
-  { label: "Configurações", to: "/configuracoes", icon: Settings, enabled: false },
+  {
+    label: "Configurações",
+    to: "/dashboard/configuracoes",
+    icon: Settings,
+    enabled: true,
+  },
 ];
 
 export function AdminLayout() {
