@@ -8,7 +8,7 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { Button } from "../ui/Button";
 import { clearAuthToken } from "../../lib/auth";
@@ -116,6 +116,9 @@ function NavigationItem({
   label,
   to,
 }: NavigationItemProps) {
+  const { pathname } = useLocation();
+  const isActive =
+    to === "/dashboard" ? pathname === to : pathname === to || pathname.startsWith(`${to}/`);
   const baseClass =
     "inline-flex min-h-10 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium outline-none transition-colors duration-150 ease-out focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface";
 
@@ -134,13 +137,11 @@ function NavigationItem({
 
   return (
     <NavLink
-      className={({ isActive }) =>
-        `${baseClass} ${compact ? "shrink-0" : ""} ${
-          isActive
-            ? "bg-primary text-white"
-            : "text-text-secondary hover:bg-surface-muted hover:text-text-primary"
-        }`
-      }
+      className={`${baseClass} ${compact ? "shrink-0" : ""} ${
+        isActive
+          ? "bg-primary text-white"
+          : "text-text-secondary hover:bg-surface-muted hover:text-text-primary"
+      }`}
       to={to}
     >
       <Icon aria-hidden="true" className="h-4 w-4" />
