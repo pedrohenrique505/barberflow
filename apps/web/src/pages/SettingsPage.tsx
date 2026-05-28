@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Settings, Store } from "lucide-react";
+import { Clock, ExternalLink, Settings, Store } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 
@@ -19,8 +20,29 @@ import {
   barbershopFormSchema,
   type BarbershopFormData,
 } from "../features/barbershops/barbershopSchemas";
+import {
+  getWorkingHours,
+  updateWorkingHours,
+  type UpdateWorkingHoursPayload,
+  type WorkingHour,
+} from "../features/working-hours/working-hours.api";
+import {
+  workingHoursFormSchema,
+  type WorkingHoursFormData,
+} from "../features/working-hours/workingHourSchemas";
 
 const myBarbershopQueryKey = ["my-barbershop"];
+const workingHoursQueryKey = ["working-hours"];
+
+const weekdays = [
+  { dayOfWeek: 0, label: "Domingo" },
+  { dayOfWeek: 1, label: "Segunda-feira" },
+  { dayOfWeek: 2, label: "Terça-feira" },
+  { dayOfWeek: 3, label: "Quarta-feira" },
+  { dayOfWeek: 4, label: "Quinta-feira" },
+  { dayOfWeek: 5, label: "Sexta-feira" },
+  { dayOfWeek: 6, label: "Sábado" },
+];
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
@@ -71,10 +93,13 @@ export function SettingsPage() {
       </header>
 
       {data ? (
-        <BarbershopDetails
-          barbershop={data}
-          onOpenPublicPage={() => navigate(`/b/${data.slug}`)}
-        />
+        <>
+          <BarbershopDetails
+            barbershop={data}
+            onOpenPublicPage={() => navigate(`/b/${data.slug}`)}
+          />
+          <WorkingHoursSection />
+        </>
       ) : (
         <BarbershopCreateForm
           error={createMutation.error}
@@ -83,6 +108,175 @@ export function SettingsPage() {
         />
       )}
     </div>
+  );
+}
+
+function WorkingHoursSection() {
+  const queryClient = useQueryClient();
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const { data, error, isLoading } = useQuery({
+    queryKey: workingHoursQueryKey,
+    queryFn: getWorkingHours,
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: updateWorkingHours,
+    onSuccess: async (workingHours) => {
+      queryClient.setQueryData(workingHoursQueryKey, workingHours);
+      setSuccessMessage("Horários salvos.");
+    },
+  });
+
+  const {
+    formState: { errors },
+    handleSubmit,
+    register,
+    reset,
+    setValue,
+    watch,
+  } = useForm<WorkingHoursFormData>({
+    defaultValues: getWorkingHoursDefaultValues([]),
+    resolver: zodResolver(workingHoursFormSchema),
+  });
+
+  const workingHours = watch("workingHours");
+
+  useEffect(() => {
+    if (data) {
+      reset(getWorkingHoursDefaultValues(data));
+    }
+  }, [data, reset]);
+
+  if (isLoading) {
+    return <LoadingState label="Carregando horários de funcionamento..." />;
+  }
+
+  if (error) {
+    return (
+      <ErrorState
+        message={
+          error instanceof Error
+            ? error.message
+            : "Não foi possível carregar os horários de funcionamento."
+        }
+        title="Erro ao carregar horários"
+      />
+    );
+  }
+
+  return (
+    <Card className="p-5 sm:p-6">
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+        <div className="flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-surface-muted text-primary">
+            <Clock aria-hidden="true" className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-xl font-semibold">Horários de funcionamento</h2>
+            <p className="mt-1 text-sm leading-6 text-text-secondary">
+              Defina em quais dias e horários a barbearia atende agendamentos.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {successMessage ? (
+        <div className="mt-5 rounded-lg bg-surface-muted px-4 py-3 text-sm font-medium text-text-primary shadow-[inset_0_0_0_1px_rgba(47,42,36,0.08)]">
+          {successMessage}
+        </div>
+      ) : null}
+
+      {updateMutation.error ? (
+        <div className="mt-5">
+          <ErrorState
+            message={
+              updateMutation.error instanceof Error
+                ? updateMutation.error.message
+                : "Não foi possível salvar os horários."
+            }
+            title="Falha ao salvar horários"
+          />
+        </div>
+      ) : null}
+
+      <form
+        className="mt-6 space-y-3"
+        onSubmit={handleSubmit((formData) => {
+          setSuccessMessage(null);
+          updateMutation.mutate(toUpdateWorkingHoursPayload(formData));
+        })}
+      >
+        {weekdays.map((weekday, index) => {
+          const isOpen = workingHours?.[index]?.isOpen ?? false;
+
+          return (
+            <div
+              className="grid gap-4 rounded-lg bg-surface-muted p-4 shadow-[inset_0_0_0_1px_rgba(47,42,36,0.08)] md:grid-cols-[minmax(10rem,1fr)_minmax(7rem,9rem)_minmax(7rem,9rem)] md:items-start"
+              key={weekday.dayOfWeek}
+            >
+              <input
+                type="hidden"
+                value={weekday.dayOfWeek}
+                {...register(`workingHours.${index}.dayOfWeek`, {
+                  valueAsNumber: true,
+                })}
+              />
+
+              <label className="flex min-h-11 items-center justify-between gap-3 rounded-md bg-surface px-3 py-2 text-sm font-medium text-text-primary shadow-[inset_0_0_0_1px_rgba(47,42,36,0.08)] md:bg-transparent md:px-0 md:shadow-none">
+                <span>{weekday.label}</span>
+                <span className="flex items-center gap-2 text-sm text-text-secondary">
+                  <input
+                    className="h-4 w-4 accent-primary"
+                    type="checkbox"
+                    {...register(`workingHours.${index}.isOpen`, {
+                      onChange: (event) => {
+                        if (!event.target.checked) {
+                          setValue(`workingHours.${index}.opensAt`, "", {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                          setValue(`workingHours.${index}.closesAt`, "", {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                        }
+                      },
+                    })}
+                  />
+                  {isOpen ? "Aberto" : "Fechado"}
+                </span>
+              </label>
+
+              <Input
+                aria-disabled={!isOpen}
+                className={!isOpen ? "opacity-60" : ""}
+                error={errors.workingHours?.[index]?.opensAt?.message}
+                label="Abertura"
+                readOnly={!isOpen}
+                type="time"
+                {...register(`workingHours.${index}.opensAt`)}
+              />
+              <Input
+                aria-disabled={!isOpen}
+                className={!isOpen ? "opacity-60" : ""}
+                error={errors.workingHours?.[index]?.closesAt?.message}
+                label="Fechamento"
+                readOnly={!isOpen}
+                type="time"
+                {...register(`workingHours.${index}.closesAt`)}
+              />
+            </div>
+          );
+        })}
+
+        <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+          <Button disabled={updateMutation.isPending} type="submit">
+            {updateMutation.isPending ? "Salvando..." : "Salvar horários"}
+          </Button>
+        </div>
+      </form>
+    </Card>
   );
 }
 
@@ -269,5 +463,66 @@ function toCreatePayload(data: BarbershopFormData): CreateBarbershopPayload {
     slug: data.slug.trim(),
     phone: phone || undefined,
     address: address || undefined,
+  };
+}
+
+function getWorkingHoursDefaultValues(
+  workingHours: WorkingHour[],
+): WorkingHoursFormData {
+  return {
+    workingHours: weekdays.map(({ dayOfWeek }) => {
+      const workingHour = workingHours.find((item) => item.dayOfWeek === dayOfWeek);
+
+      if (workingHour) {
+        return {
+          dayOfWeek,
+          isOpen: workingHour.isOpen,
+          opensAt: workingHour.opensAt ?? "",
+          closesAt: workingHour.closesAt ?? "",
+        };
+      }
+
+      return getLocalDefaultWorkingHour(dayOfWeek);
+    }),
+  };
+}
+
+function getLocalDefaultWorkingHour(dayOfWeek: number) {
+  if (dayOfWeek === 0) {
+    return {
+      dayOfWeek,
+      isOpen: false,
+      opensAt: "",
+      closesAt: "",
+    };
+  }
+
+  if (dayOfWeek === 6) {
+    return {
+      dayOfWeek,
+      isOpen: true,
+      opensAt: "08:00",
+      closesAt: "12:00",
+    };
+  }
+
+  return {
+    dayOfWeek,
+    isOpen: true,
+    opensAt: "08:00",
+    closesAt: "18:00",
+  };
+}
+
+function toUpdateWorkingHoursPayload(
+  data: WorkingHoursFormData,
+): UpdateWorkingHoursPayload {
+  return {
+    workingHours: data.workingHours.map((workingHour) => ({
+      dayOfWeek: workingHour.dayOfWeek,
+      isOpen: workingHour.isOpen,
+      opensAt: workingHour.isOpen ? workingHour.opensAt : null,
+      closesAt: workingHour.isOpen ? workingHour.closesAt : null,
+    })),
   };
 }
