@@ -15,7 +15,7 @@ import { clearAuthToken } from "../../lib/auth";
 
 const navigationItems = [
   { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard, enabled: true },
-  { label: "Agenda", to: "/agenda", icon: CalendarDays, enabled: false },
+  { label: "Agenda", to: "/dashboard/agenda", icon: CalendarDays, enabled: true },
   {
     label: "Agendamentos",
     to: "/dashboard/agendamentos",

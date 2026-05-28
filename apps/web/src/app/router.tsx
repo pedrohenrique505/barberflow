@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 
 import { AdminLayout } from "../components/layout/AdminLayout";
 import { hasAuthToken } from "../lib/auth";
+import { AgendaPage } from "../pages/AgendaPage";
 import { AppointmentsPage } from "../pages/AppointmentsPage";
 import { BarbersPage } from "../pages/BarbersPage";
 import { CustomersPage } from "../pages/CustomersPage";
@@ -41,6 +42,10 @@ export const router = createBrowserRouter([
           {
             path: "/dashboard",
             element: <DashboardPage />,
+          },
+          {
+            path: "/dashboard/agenda",
+            element: <AgendaPage />,
           },
           {
             path: "/dashboard/servicos",
