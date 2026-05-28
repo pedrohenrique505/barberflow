@@ -10,6 +10,14 @@ type SuccessLocationState = {
   appointment?: PublicAppointment;
 };
 
+const statusLabels: Record<PublicAppointment["status"], string> = {
+  cancelled: "Cancelado",
+  completed: "Concluído",
+  confirmed: "Confirmado",
+  no_show: "Não compareceu",
+  scheduled: "Agendado",
+};
+
 export function PublicBookingSuccessPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -19,7 +27,7 @@ export function PublicBookingSuccessPage() {
     return (
       <PublicSuccessShell>
         <ErrorState
-          message="Não encontramos os dados do agendamento nesta tela. Volte para a página da barbearia e inicie o agendamento novamente."
+          message="Não encontramos os dados do agendamento. Volte para a página anterior e inicie o agendamento novamente."
           title="Agendamento não encontrado"
         />
         <Button className="mt-4 w-full sm:w-fit" onClick={() => navigate(-1)}>
@@ -28,6 +36,9 @@ export function PublicBookingSuccessPage() {
       </PublicSuccessShell>
     );
   }
+
+  const startDateTime = formatDateTime(appointment.startAt);
+  const endDateTime = formatDateTime(appointment.endAt);
 
   return (
     <PublicSuccessShell>
@@ -42,8 +53,11 @@ export function PublicBookingSuccessPage() {
                 Agendamento criado
               </p>
               <h1 className="mt-1 text-2xl font-semibold text-text-primary sm:text-3xl">
-                Seu horário foi solicitado com sucesso.
+                Agendamento criado com sucesso
               </h1>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-text-secondary">
+                Confira os dados abaixo e guarde as informações do seu horário.
+              </p>
             </div>
           </div>
         </div>
@@ -53,10 +67,12 @@ export function PublicBookingSuccessPage() {
             <SummaryLine label="Barbearia" value={appointment.barbershop.name} />
             <SummaryLine label="Serviço" value={appointment.service.name} />
             <SummaryLine label="Barbeiro" value={appointment.barber.name} />
-            <SummaryLine label="Data" value={formatDateTime(appointment.startAt).date} />
-            <SummaryLine label="Horário" value={formatDateTime(appointment.startAt).time} />
             <SummaryLine label="Cliente" value={appointment.customer.name} />
             <SummaryLine label="Telefone" value={appointment.customer.phone} />
+            <SummaryLine label="Data" value={startDateTime.date} />
+            <SummaryLine label="Horário de início" value={startDateTime.time} />
+            <SummaryLine label="Horário de fim" value={endDateTime.time} />
+            <SummaryLine label="Status" value={statusLabels[appointment.status]} />
             <SummaryLine
               label="Preço"
               value={formatCurrency(appointment.service.priceInCents)}
@@ -73,14 +89,22 @@ export function PublicBookingSuccessPage() {
             </p>
           </div>
 
-          <Button
-            className="w-full sm:w-fit"
-            onClick={() => navigate(`/b/${appointment.barbershop.slug}`)}
-            variant="secondary"
-          >
-            <Scissors aria-hidden="true" className="h-4 w-4" />
-            Ver página da barbearia
-          </Button>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button
+              className="w-full sm:w-fit"
+              onClick={() => navigate(`/b/${appointment.barbershop.slug}`)}
+            >
+              <Scissors aria-hidden="true" className="h-4 w-4" />
+              Voltar para a barbearia
+            </Button>
+            <Button
+              className="w-full sm:w-fit"
+              onClick={() => navigate(`/b/${appointment.barbershop.slug}/agendar`)}
+              variant="secondary"
+            >
+              Fazer outro agendamento
+            </Button>
+          </div>
         </div>
       </Card>
     </PublicSuccessShell>
