@@ -24,11 +24,18 @@ import {
   type ListAppointmentsParams,
 } from "../features/appointments/appointments.api";
 import { listBarbers, type Barber } from "../features/barbers/barbers.api";
+import { getMyBarbershop } from "../features/barbershops/barbershops.api";
+import {
+  getAvailability,
+  type PublicAvailabilitySlot,
+} from "../features/public-booking/public-booking.api";
 import { listServices, type Service } from "../features/services/services.api";
 
 const appointmentsQueryKey = ["appointments"];
 const barbersQueryKey = ["barbers"];
+const myBarbershopQueryKey = ["my-barbershop"];
 const servicesQueryKey = ["services"];
+const availabilityQueryKey = ["availability"];
 
 const statusLabels: Record<AppointmentStatus, string> = {
   scheduled: "Agendado",
@@ -279,12 +286,63 @@ function NewAppointmentDrawer({
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [selectedBarberId, setSelectedBarberId] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
-  const [selectedSlot, setSelectedSlot] = useState("");
+  const [selectedSlot, setSelectedSlot] = useState<PublicAvailabilitySlot | null>(
+    null,
+  );
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
 
   const activeServices = services.filter((service) => service.isActive);
   const activeBarbers = barbers.filter((barber) => barber.isActive);
+  const selectedService = activeServices.find(
+    (service) => service.id === selectedServiceId,
+  );
+  const selectedBarber = activeBarbers.find(
+    (barber) => barber.id === selectedBarberId,
+  );
+  const barbershopQuery = useQuery({
+    queryKey: myBarbershopQueryKey,
+    queryFn: getMyBarbershop,
+  });
+  const canFetchAvailability = Boolean(
+    barbershopQuery.data?.slug &&
+      selectedServiceId &&
+      selectedBarberId &&
+      selectedDate,
+  );
+  const availabilityQuery = useQuery({
+    enabled: canFetchAvailability,
+    queryKey: [
+      ...availabilityQueryKey,
+      barbershopQuery.data?.slug,
+      selectedServiceId,
+      selectedBarberId,
+      selectedDate,
+    ],
+    queryFn: () =>
+      getAvailability({
+        barberId: selectedBarberId,
+        barbershopSlug: barbershopQuery.data?.slug ?? "",
+        date: selectedDate,
+        serviceId: selectedServiceId,
+      }),
+  });
+  const slots = availabilityQuery.data?.slots ?? [];
+
+  function handleServiceChange(value: string) {
+    setSelectedServiceId(value);
+    setSelectedSlot(null);
+  }
+
+  function handleBarberChange(value: string) {
+    setSelectedBarberId(value);
+    setSelectedSlot(null);
+  }
+
+  function handleDateChange(value: string) {
+    setSelectedDate(value);
+    setSelectedSlot(null);
+  }
 
   return (
     <div
@@ -319,16 +377,22 @@ function NewAppointmentDrawer({
         </div>
 
         <div className="mt-6 space-y-4">
-          {isLoading ? (
+          {isLoading || barbershopQuery.isLoading ? (
             <LoadingState label="Carregando serviços e barbeiros..." />
-          ) : servicesError ? (
+          ) : servicesError || barbershopQuery.error ? (
             <ErrorState
               message={
-                servicesError instanceof Error
-                  ? servicesError.message
-                  : "Não foi possível carregar os dados do agendamento."
+                getErrorMessage(
+                  servicesError ?? barbershopQuery.error,
+                  "Não foi possível carregar os dados do agendamento.",
+                )
               }
               title="Erro ao carregar dados"
+            />
+          ) : !barbershopQuery.data ? (
+            <ErrorState
+              message="Cadastre uma barbearia antes de criar agendamentos manuais."
+              title="Barbearia não encontrada"
             />
           ) : activeServices.length === 0 ? (
             <EmptyState
@@ -348,7 +412,7 @@ function NewAppointmentDrawer({
               <div className="grid gap-4 sm:grid-cols-2">
                 <SelectField
                   label="Serviço"
-                  onChange={setSelectedServiceId}
+                  onChange={handleServiceChange}
                   options={[
                     { label: "Selecione um serviço", value: "" },
                     ...activeServices.map((service) => ({
@@ -360,7 +424,7 @@ function NewAppointmentDrawer({
                 />
                 <SelectField
                   label="Barbeiro"
-                  onChange={setSelectedBarberId}
+                  onChange={handleBarberChange}
                   options={[
                     { label: "Selecione um barbeiro", value: "" },
                     ...activeBarbers.map((barber) => ({
@@ -375,18 +439,62 @@ function NewAppointmentDrawer({
               <div className="grid gap-4 sm:grid-cols-2">
                 <Input
                   label="Data"
-                  onChange={(event) => setSelectedDate(event.target.value)}
+                  onChange={(event) => handleDateChange(event.target.value)}
                   type="date"
                   value={selectedDate}
                 />
-                <Input
-                  disabled
-                  label="Horário"
-                  onChange={(event) => setSelectedSlot(event.target.value)}
-                  placeholder="Disponibilidade no próximo passo"
-                  value={selectedSlot}
-                />
               </div>
+
+              <section className="space-y-3">
+                <div>
+                  <h3 className="text-sm font-medium text-text-primary">Horário</h3>
+                  <p className="mt-1 text-sm leading-5 text-text-secondary">
+                    Escolha um horário disponível para continuar preparando o
+                    agendamento.
+                  </p>
+                </div>
+
+                {!canFetchAvailability ? (
+                  <div className="rounded-lg bg-surface-muted px-4 py-3 text-sm text-text-secondary shadow-[inset_0_0_0_1px_rgba(47,42,36,0.08)]">
+                    Escolha serviço, barbeiro e data para ver os horários.
+                  </div>
+                ) : availabilityQuery.isLoading || availabilityQuery.isFetching ? (
+                  <LoadingState label="Carregando horários disponíveis..." />
+                ) : availabilityQuery.error ? (
+                  <ErrorState
+                    message={
+                      availabilityQuery.error instanceof Error
+                        ? availabilityQuery.error.message
+                        : "Não foi possível carregar os horários disponíveis."
+                    }
+                    title="Erro ao carregar horários"
+                  />
+                ) : slots.length === 0 ? (
+                  <EmptyState
+                    description="Tente selecionar outra data para este serviço e barbeiro."
+                    title="Nenhum horário disponível para esta data."
+                  />
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {slots.map((slot) => {
+                      const isSelected = selectedSlot?.startAt === slot.startAt;
+
+                      return (
+                        <Button
+                          aria-pressed={isSelected}
+                          className="tabular-nums"
+                          key={slot.startAt}
+                          onClick={() => setSelectedSlot(slot)}
+                          type="button"
+                          variant={isSelected ? "primary" : "secondary"}
+                        >
+                          {slot.label}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <Input
@@ -406,8 +514,32 @@ function NewAppointmentDrawer({
                 />
               </div>
 
+              <div className="rounded-lg bg-surface-muted p-4 shadow-[inset_0_0_0_1px_rgba(47,42,36,0.08)]">
+                <h3 className="text-sm font-semibold text-text-primary">Resumo</h3>
+                <dl className="mt-3 grid gap-2 text-sm text-text-secondary sm:grid-cols-2">
+                  <SummaryItem
+                    label="Serviço"
+                    value={selectedService?.name ?? "Não selecionado"}
+                  />
+                  <SummaryItem
+                    label="Barbeiro"
+                    value={selectedBarber?.name ?? "Não selecionado"}
+                  />
+                  <SummaryItem
+                    label="Data"
+                    value={
+                      selectedDate ? formatSelectedDay(selectedDate) : "Não selecionada"
+                    }
+                  />
+                  <SummaryItem
+                    label="Horário"
+                    value={selectedSlot?.label ?? "Não selecionado"}
+                  />
+                </dl>
+              </div>
+
               <div className="rounded-lg bg-surface-muted px-4 py-3 text-sm text-text-secondary shadow-[inset_0_0_0_1px_rgba(47,42,36,0.08)]">
-                A seleção de horários será implementada no próximo passo.
+                O cadastro do cliente será implementado no próximo passo.
               </div>
 
               <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
@@ -422,6 +554,15 @@ function NewAppointmentDrawer({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function SummaryItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="font-medium text-text-primary">{label}</dt>
+      <dd className="mt-1 truncate">{value}</dd>
     </div>
   );
 }
@@ -651,4 +792,8 @@ function formatCurrency(valueInCents: number) {
     currency: "BRL",
     style: "currency",
   }).format(valueInCents / 100);
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }
