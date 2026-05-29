@@ -40,6 +40,7 @@ import {
   type PublicAvailabilitySlot,
 } from "../features/public-booking/public-booking.api";
 import { listServices, type Service } from "../features/services/services.api";
+import { getTodayDateInputValue, isDateInputBeforeToday } from "../lib/date";
 
 const appointmentsQueryKey = ["appointments"];
 const barbersQueryKey = ["barbers"];
@@ -59,7 +60,10 @@ const newAppointmentSchema = z.object({
     .trim()
     .min(1, "Informe o telefone do cliente.")
     .min(8, "Informe um telefone válido."),
-  date: z.string().min(1, "Selecione uma data."),
+  date: z
+    .string()
+    .min(1, "Selecione uma data.")
+    .refine((value) => !isDateInputBeforeToday(value), "Selecione uma data válida."),
   serviceId: z.string().min(1, "Selecione um serviço."),
   slotStartAt: z.string().min(1, "Selecione um horário."),
 });
@@ -68,7 +72,7 @@ type NewAppointmentFormData = z.infer<typeof newAppointmentSchema>;
 
 export function AgendaPage() {
   const queryClient = useQueryClient();
-  const [selectedDate, setSelectedDate] = useState(() => toDateInputValue(new Date()));
+  const [selectedDate, setSelectedDate] = useState(() => getTodayDateInputValue());
   const [selectedBarberId, setSelectedBarberId] = useState("");
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(
     null,
@@ -122,7 +126,7 @@ export function AgendaPage() {
 
   function handleToday() {
     setSuccessMessage(null);
-    setSelectedDate(toDateInputValue(new Date()));
+    setSelectedDate(getTodayDateInputValue());
   }
 
   function handleOpenAppointmentDetails(appointment: Appointment) {
@@ -345,6 +349,7 @@ function NewAppointmentDrawer({
   );
   const queryClient = useQueryClient();
   const {
+    clearErrors,
     formState: { errors },
     handleSubmit,
     reset,
@@ -365,6 +370,8 @@ function NewAppointmentDrawer({
   const selectedServiceId = watch("serviceId");
   const selectedBarberId = watch("barberId");
   const selectedDate = watch("date");
+  const today = getTodayDateInputValue();
+  const isSelectedDatePast = isDateInputBeforeToday(selectedDate);
   const customerName = watch("customerName");
   const customerPhone = watch("customerPhone");
 
@@ -397,7 +404,8 @@ function NewAppointmentDrawer({
     barbershopQuery.data?.slug &&
       selectedServiceId &&
       selectedBarberId &&
-      selectedDate,
+      selectedDate &&
+      !isSelectedDatePast,
   );
   const availabilityQuery = useQuery({
     enabled: canFetchAvailability,
@@ -467,6 +475,12 @@ function NewAppointmentDrawer({
   function handleDateChange(value: string) {
     setValue("date", value, { shouldValidate: true });
     clearSelectedSlot();
+
+    if (isDateInputBeforeToday(value)) {
+      setError("date", { message: "Selecione uma data válida." });
+    } else {
+      clearErrors("date");
+    }
   }
 
   function handleSlotChange(slot: PublicAvailabilitySlot) {
@@ -503,6 +517,12 @@ function NewAppointmentDrawer({
 
     if (!selectedSlot) {
       setError("slotStartAt", { message: "Selecione um horário." });
+      return;
+    }
+
+    if (isDateInputBeforeToday(data.date)) {
+      setError("date", { message: "Selecione uma data válida." });
+      clearSelectedSlot();
       return;
     }
 
@@ -614,6 +634,7 @@ function NewAppointmentDrawer({
                 <Input
                   error={errors.date?.message}
                   label="Data"
+                  min={today}
                   onChange={(event) => handleDateChange(event.target.value)}
                   type="date"
                   value={selectedDate}

@@ -21,6 +21,7 @@ import {
   type AppointmentStatus,
 } from "./appointments.api";
 import { ApiError } from "../../lib/api";
+import { getTodayDateInputValue, isDateInputBeforeToday } from "../../lib/date";
 
 export const appointmentStatusLabels: Record<AppointmentStatus, string> = {
   scheduled: "Agendado",
@@ -82,6 +83,10 @@ export function AppointmentDetailsModal({
     queryFn: listBarbers,
   });
   const activeBarbers = (barbersQuery.data ?? []).filter((barber) => barber.isActive);
+  const today = getTodayDateInputValue();
+  const dateError = isDateInputBeforeToday(selectedDate)
+    ? "Selecione uma data válida."
+    : undefined;
   const selectedBarber = activeBarbers.find(
     (barber) => barber.id === selectedBarberId,
   );
@@ -90,7 +95,8 @@ export function AppointmentDetailsModal({
       barbershopQuery.data?.slug &&
       appointment.service.id &&
       selectedBarberId &&
-      selectedDate,
+      selectedDate &&
+      !dateError,
   );
   const availabilityQueryKey = [
     "availability",
@@ -113,12 +119,16 @@ export function AppointmentDetailsModal({
   });
   const availableSlots = availabilityQuery.data?.slots ?? [];
   const canConfirmReschedule = Boolean(
-    selectedBarberId && selectedDate && selectedSlot,
+    selectedBarberId && selectedDate && selectedSlot && !dateError,
   );
   const rescheduleMutation = useMutation({
     mutationFn: () => {
       if (!selectedSlot) {
         throw new Error("Selecione um horário para reagendar.");
+      }
+
+      if (dateError) {
+        throw new Error(dateError);
       }
 
       return rescheduleAppointment(appointment.id, {
@@ -384,7 +394,9 @@ export function AppointmentDetailsModal({
                     />
 
                     <Input
+                      error={dateError}
                       label="Nova data"
+                      min={today}
                       name="reschedule-date"
                       onChange={(event) => handleDateChange(event.target.value)}
                       type="date"

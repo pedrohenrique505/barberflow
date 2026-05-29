@@ -20,6 +20,7 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { ErrorState } from "../components/ui/ErrorState";
 import { Input } from "../components/ui/Input";
 import { LoadingState } from "../components/ui/LoadingState";
+import { getTodayDateInputValue, isDateInputBeforeToday } from "../lib/date";
 import {
   createAppointment,
   getAvailability,
@@ -154,6 +155,11 @@ export function PublicBookingPage() {
     setSelectedSlot(null);
   }
 
+  function handleSelectDate(date: string) {
+    setSelectedDate(isDateInputBeforeToday(date) ? "" : date);
+    setSelectedSlot(null);
+  }
+
   function handleBack() {
     setConfirmationError("");
     setCurrentStep((stepIndex) => Math.max(stepIndex - 1, 0));
@@ -185,6 +191,13 @@ export function PublicBookingPage() {
 
     if (!selectedServiceId || !selectedBarberId || !selectedDate || !selectedSlot) {
       setConfirmationError("Revise serviço, barbeiro, data e horário antes de confirmar.");
+      return;
+    }
+
+    if (isDateInputBeforeToday(selectedDate)) {
+      setConfirmationError("Selecione uma data válida.");
+      setSelectedDate("");
+      setSelectedSlot(null);
       return;
     }
 
@@ -258,10 +271,7 @@ export function PublicBookingPage() {
                   selectedDate={selectedDate}
                   selectedServiceId={selectedServiceId}
                   selectedSlot={selectedSlot}
-                  onSelectDate={(date) => {
-                    setSelectedDate(date);
-                    setSelectedSlot(null);
-                  }}
+                  onSelectDate={handleSelectDate}
                   onSelectSlot={setSelectedSlot}
                 />
               ) : null}
@@ -508,8 +518,16 @@ function DateTimeStep({
   onSelectDate: (date: string) => void;
   onSelectSlot: (slot: PublicAvailabilitySlot) => void;
 }) {
+  const today = getTodayDateInputValue();
+  const dateError = isDateInputBeforeToday(selectedDate)
+    ? "Selecione uma data válida."
+    : undefined;
   const canFetchAvailability = Boolean(
-    barbershopSlug && selectedServiceId && selectedBarberId && selectedDate,
+    barbershopSlug &&
+      selectedServiceId &&
+      selectedBarberId &&
+      selectedDate &&
+      !dateError,
   );
   const availabilityQuery = useQuery({
     enabled: canFetchAvailability,
@@ -541,7 +559,9 @@ function DateTimeStep({
       <div className="mt-5 max-w-xs">
         <Input
           disabled={!selectedServiceId || !selectedBarberId}
+          error={dateError}
           label="Data do atendimento"
+          min={today}
           name="booking-date"
           onChange={(event) => onSelectDate(event.target.value)}
           type="date"
@@ -802,7 +822,11 @@ function getCanContinue(
   }
 
   if (step === "Data e horário") {
-    return state.selectedDate.length > 0 && state.selectedSlot !== null;
+    return (
+      state.selectedDate.length > 0 &&
+      !isDateInputBeforeToday(state.selectedDate) &&
+      state.selectedSlot !== null
+    );
   }
 
   return true;
