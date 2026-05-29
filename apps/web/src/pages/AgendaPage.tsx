@@ -9,7 +9,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -28,6 +28,7 @@ import {
 } from "../features/appointments/appointments.api";
 import { listBarbers, type Barber } from "../features/barbers/barbers.api";
 import { getMyBarbershop } from "../features/barbershops/barbershops.api";
+import { listCustomers, type Customer } from "../features/customers/customers.api";
 import {
   createAppointment,
   getAvailability,
@@ -313,6 +314,9 @@ function NewAppointmentDrawer({
   services,
   servicesError,
 }: NewAppointmentDrawerProps) {
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [hasSearchedCustomers, setHasSearchedCustomers] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<PublicAvailabilitySlot | null>(
     null,
   );
@@ -320,7 +324,6 @@ function NewAppointmentDrawer({
   const {
     formState: { errors },
     handleSubmit,
-    register,
     reset,
     setError,
     setValue,
@@ -364,6 +367,9 @@ function NewAppointmentDrawer({
       onCreated(appointmentDate);
     },
   });
+  const customerSearchMutation = useMutation({
+    mutationFn: (search: string) => listCustomers({ search }),
+  });
   const canFetchAvailability = Boolean(
     barbershopQuery.data?.slug &&
       selectedServiceId &&
@@ -388,6 +394,42 @@ function NewAppointmentDrawer({
       }),
   });
   const slots = availabilityQuery.data?.slots ?? [];
+  const customerResults = customerSearchMutation.data ?? [];
+  const selectedCustomer = customerResults.find(
+    (customer) => customer.id === selectedCustomerId,
+  );
+
+  function handleCustomerSearch() {
+    setHasSearchedCustomers(true);
+    customerSearchMutation.mutate(customerSearch);
+  }
+
+  function handleCustomerSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+    handleCustomerSearch();
+  }
+
+  function handleSelectCustomer(customer: Customer) {
+    setSelectedCustomerId(customer.id);
+    setValue("customerName", customer.name, { shouldValidate: true });
+    setValue("customerPhone", customer.phone, { shouldValidate: true });
+  }
+
+  function handleUseAnotherCustomer() {
+    setSelectedCustomerId(null);
+  }
+
+  function handleManualCustomerChange(
+    field: "customerName" | "customerPhone",
+    event: ChangeEvent<HTMLInputElement>,
+  ) {
+    setSelectedCustomerId(null);
+    setValue(field, event.target.value, { shouldValidate: true });
+  }
 
   function handleServiceChange(value: string) {
     setValue("serviceId", value, { shouldValidate: true });
@@ -417,8 +459,12 @@ function NewAppointmentDrawer({
 
   function handleClose() {
     reset();
+    setCustomerSearch("");
+    setHasSearchedCustomers(false);
+    setSelectedCustomerId(null);
     setSelectedSlot(null);
     createAppointmentMutation.reset();
+    customerSearchMutation.reset();
     onClose();
   }
 
@@ -605,19 +651,116 @@ function NewAppointmentDrawer({
                 ) : null}
               </section>
 
+              <section className="space-y-3 rounded-lg bg-surface-muted p-4 shadow-[inset_0_0_0_1px_rgba(47,42,36,0.08)]">
+                <div>
+                  <h3 className="text-sm font-medium text-text-primary">
+                    Buscar cliente
+                  </h3>
+                  <p className="mt-1 text-sm leading-5 text-text-secondary">
+                    Selecione um cliente existente ou preencha os dados manualmente.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                  <Input
+                    label="Buscar cliente"
+                    onChange={(event) => setCustomerSearch(event.target.value)}
+                    onKeyDown={handleCustomerSearchKeyDown}
+                    placeholder="Buscar por nome ou telefone"
+                    value={customerSearch}
+                  />
+                  <Button
+                    disabled={customerSearchMutation.isPending}
+                    onClick={handleCustomerSearch}
+                    type="button"
+                    variant="secondary"
+                  >
+                    {customerSearchMutation.isPending ? "Buscando..." : "Buscar"}
+                  </Button>
+                </div>
+
+                {selectedCustomerId ? (
+                  <div className="flex flex-col gap-2 rounded-md bg-surface px-3 py-2 text-sm shadow-[inset_0_0_0_1px_rgba(47,42,36,0.08)] sm:flex-row sm:items-center sm:justify-between">
+                    <span className="font-medium text-text-primary">
+                      Cliente selecionado
+                      {selectedCustomer ? `: ${selectedCustomer.name}` : ""}
+                    </span>
+                    <Button
+                      className="w-full px-3 sm:w-fit"
+                      onClick={handleUseAnotherCustomer}
+                      type="button"
+                      variant="ghost"
+                    >
+                      Usar outro cliente
+                    </Button>
+                  </div>
+                ) : null}
+
+                {customerSearchMutation.isPending ? (
+                  <LoadingState label="Buscando clientes..." />
+                ) : customerSearchMutation.error ? (
+                  <ErrorState
+                    message={getErrorMessage(
+                      customerSearchMutation.error,
+                      "Não foi possível buscar clientes.",
+                    )}
+                    title="Erro ao buscar clientes"
+                  />
+                ) : hasSearchedCustomers && customerResults.length === 0 ? (
+                  <EmptyState
+                    description="Preencha nome e telefone manualmente para criar o agendamento."
+                    title="Nenhum cliente encontrado"
+                  />
+                ) : customerResults.length > 0 ? (
+                  <div className="space-y-2">
+                    {customerResults.map((customer) => (
+                      <article
+                        className="flex flex-col gap-3 rounded-md bg-surface p-3 shadow-[inset_0_0_0_1px_rgba(47,42,36,0.08)] sm:flex-row sm:items-center sm:justify-between"
+                        key={customer.id}
+                      >
+                        <div className="min-w-0">
+                          <h4 className="truncate text-sm font-semibold text-text-primary">
+                            {customer.name}
+                          </h4>
+                          <p className="mt-1 truncate text-sm text-text-secondary">
+                            {customer.phone}
+                          </p>
+                        </div>
+                        <Button
+                          className="w-full px-3 sm:w-fit"
+                          onClick={() => handleSelectCustomer(customer)}
+                          type="button"
+                          variant={
+                            selectedCustomerId === customer.id ? "primary" : "secondary"
+                          }
+                        >
+                          Selecionar
+                        </Button>
+                      </article>
+                    ))}
+                  </div>
+                ) : null}
+              </section>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <Input
                   error={errors.customerName?.message}
                   label="Nome do cliente"
+                  onChange={(event) =>
+                    handleManualCustomerChange("customerName", event)
+                  }
                   placeholder="Maria Souza"
-                  {...register("customerName")}
+                  value={customerName}
                 />
                 <Input
                   error={errors.customerPhone?.message}
                   inputMode="tel"
                   label="Telefone do cliente"
+                  onChange={(event) =>
+                    handleManualCustomerChange("customerPhone", event)
+                  }
                   placeholder="88999999999"
-                  {...register("customerPhone")}
+                  value={customerPhone}
                 />
               </div>
 
