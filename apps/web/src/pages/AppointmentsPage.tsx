@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarCheck, Check, Search, XCircle } from "lucide-react";
+import { Check, Search, XCircle } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "../components/ui/Button";
@@ -15,16 +15,14 @@ import {
   type AppointmentStatus,
   type ListAppointmentsParams,
 } from "../features/appointments/appointments.api";
+import {
+  AppointmentDetailsModal,
+  AppointmentStatusBadge,
+  appointmentStatusActions,
+  appointmentStatusLabels,
+} from "../features/appointments/AppointmentDetailsModal";
 
 const appointmentsQueryKey = ["appointments"];
-
-const statusLabels: Record<AppointmentStatus, string> = {
-  scheduled: "Agendado",
-  confirmed: "Confirmado",
-  completed: "Concluído",
-  cancelled: "Cancelado",
-  no_show: "Não compareceu",
-};
 
 const statusOptions: Array<{ label: string; value: AppointmentStatus | "" }> = [
   { label: "Todos", value: "" },
@@ -33,13 +31,6 @@ const statusOptions: Array<{ label: string; value: AppointmentStatus | "" }> = [
   { label: "Concluído", value: "completed" },
   { label: "Cancelado", value: "cancelled" },
   { label: "Não compareceu", value: "no_show" },
-];
-
-const statusActions: Array<{ label: string; status: AppointmentStatus }> = [
-  { label: "Confirmar", status: "confirmed" },
-  { label: "Concluir", status: "completed" },
-  { label: "Cancelar", status: "cancelled" },
-  { label: "Não compareceu", status: "no_show" },
 ];
 
 type AppointmentFilters = {
@@ -59,6 +50,9 @@ export function AppointmentsPage() {
   const [filters, setFilters] = useState<AppointmentFilters>(initialFilters);
   const [activeFilters, setActiveFilters] =
     useState<AppointmentFilters>(initialFilters);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(
+    null,
+  );
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const queryParams = toListAppointmentsParams(activeFilters);
@@ -75,9 +69,14 @@ export function AppointmentsPage() {
       id: string;
       status: AppointmentStatus;
     }) => updateAppointmentStatus(id, status),
-    onSuccess: async (_appointment, variables) => {
+    onSuccess: async (appointment, variables) => {
       await queryClient.invalidateQueries({ queryKey: appointmentsQueryKey });
-      setSuccessMessage(`Status alterado para ${statusLabels[variables.status]}.`);
+      setSelectedAppointment((current) =>
+        current?.id === appointment.id ? appointment : current,
+      );
+      setSuccessMessage(
+        `Status alterado para ${appointmentStatusLabels[variables.status]}.`,
+      );
     },
   });
 
@@ -95,6 +94,11 @@ export function AppointmentsPage() {
     setActiveFilters(initialFilters);
   }
 
+  function handleOpenAppointmentDetails(appointment: Appointment) {
+    updateStatusMutation.reset();
+    setSelectedAppointment(appointment);
+  }
+
   function handleStatusChange(
     appointment: Appointment,
     nextStatus: AppointmentStatus,
@@ -108,7 +112,7 @@ export function AppointmentsPage() {
     if (
       (nextStatus === "cancelled" || nextStatus === "no_show") &&
       !window.confirm(
-        `Alterar o status do agendamento de ${appointment.customer.name} para ${statusLabels[nextStatus]}?`,
+        `Alterar o status do agendamento de ${appointment.customer.name} para ${appointmentStatusLabels[nextStatus]}?`,
       )
     ) {
       return;
@@ -228,11 +232,23 @@ export function AppointmentsPage() {
             appointments={appointments}
             isFetching={isFetching}
             isUpdating={updateStatusMutation.isPending}
+            onOpenDetails={handleOpenAppointmentDetails}
             onStatusChange={handleStatusChange}
             updatingId={updateStatusMutation.variables?.id}
           />
         )}
       </Card>
+
+      {selectedAppointment ? (
+        <AppointmentDetailsModal
+          appointment={selectedAppointment}
+          error={updateStatusMutation.error}
+          isUpdating={updateStatusMutation.isPending}
+          onClose={() => setSelectedAppointment(null)}
+          onStatusChange={handleStatusChange}
+          updatingStatus={updateStatusMutation.variables?.status}
+        />
+      ) : null}
     </div>
   );
 }
@@ -241,6 +257,7 @@ type AppointmentsTableProps = {
   appointments: Appointment[];
   isFetching: boolean;
   isUpdating: boolean;
+  onOpenDetails: (appointment: Appointment) => void;
   onStatusChange: (
     appointment: Appointment,
     nextStatus: AppointmentStatus,
@@ -252,6 +269,7 @@ function AppointmentsTable({
   appointments,
   isFetching,
   isUpdating,
+  onOpenDetails,
   onStatusChange,
   updatingId,
 }: AppointmentsTableProps) {
@@ -315,11 +333,19 @@ function AppointmentsTable({
                   {formatTime(appointment.startAt)} - {formatTime(appointment.endAt)}
                 </td>
                 <td className="px-5 py-4">
-                  <StatusBadge status={appointment.status} />
+                  <AppointmentStatusBadge status={appointment.status} />
                 </td>
                 <td className="px-5 py-4">
                   <div className="flex min-w-72 flex-wrap justify-end gap-2">
-                    {statusActions.map((action) => (
+                    <Button
+                      className="px-3"
+                      onClick={() => onOpenDetails(appointment)}
+                      type="button"
+                      variant="secondary"
+                    >
+                      Ver detalhes
+                    </Button>
+                    {appointmentStatusActions.map((action) => (
                       <Button
                         aria-label={`${action.label} agendamento de ${appointment.customer.name}`}
                         className="px-3"
@@ -384,15 +410,6 @@ function SelectField({ label, onChange, options, value }: SelectFieldProps) {
         ))}
       </select>
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: AppointmentStatus }) {
-  return (
-    <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-surface-muted px-3 py-1 text-xs font-medium text-text-secondary">
-      <CalendarCheck aria-hidden="true" className="h-3.5 w-3.5" />
-      {statusLabels[status]}
-    </span>
   );
 }
 

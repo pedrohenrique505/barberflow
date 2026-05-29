@@ -1,7 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  CalendarCheck,
   CalendarPlus,
   Check,
   ChevronLeft,
@@ -26,6 +25,12 @@ import {
   type AppointmentStatus,
   type ListAppointmentsParams,
 } from "../features/appointments/appointments.api";
+import {
+  AppointmentDetailsModal,
+  AppointmentStatusBadge,
+  appointmentStatusActions,
+  appointmentStatusLabels,
+} from "../features/appointments/AppointmentDetailsModal";
 import { listBarbers, type Barber } from "../features/barbers/barbers.api";
 import { getMyBarbershop } from "../features/barbershops/barbershops.api";
 import { listCustomers, type Customer } from "../features/customers/customers.api";
@@ -61,25 +66,13 @@ const newAppointmentSchema = z.object({
 
 type NewAppointmentFormData = z.infer<typeof newAppointmentSchema>;
 
-const statusLabels: Record<AppointmentStatus, string> = {
-  scheduled: "Agendado",
-  confirmed: "Confirmado",
-  completed: "Concluído",
-  cancelled: "Cancelado",
-  no_show: "Não compareceu",
-};
-
-const statusActions: Array<{ label: string; status: AppointmentStatus }> = [
-  { label: "Confirmar", status: "confirmed" },
-  { label: "Concluir", status: "completed" },
-  { label: "Cancelar", status: "cancelled" },
-  { label: "Não compareceu", status: "no_show" },
-];
-
 export function AgendaPage() {
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(() => toDateInputValue(new Date()));
   const [selectedBarberId, setSelectedBarberId] = useState("");
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(
+    null,
+  );
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isNewAppointmentOpen, setIsNewAppointmentOpen] = useState(false);
 
@@ -101,9 +94,14 @@ export function AgendaPage() {
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: AppointmentStatus }) =>
       updateAppointmentStatus(id, status),
-    onSuccess: async (_appointment, variables) => {
+    onSuccess: async (appointment, variables) => {
       await queryClient.invalidateQueries({ queryKey: appointmentsQueryKey });
-      setSuccessMessage(`Status alterado para ${statusLabels[variables.status]}.`);
+      setSelectedAppointment((current) =>
+        current?.id === appointment.id ? appointment : current,
+      );
+      setSuccessMessage(
+        `Status alterado para ${appointmentStatusLabels[variables.status]}.`,
+      );
     },
   });
 
@@ -127,6 +125,11 @@ export function AgendaPage() {
     setSelectedDate(toDateInputValue(new Date()));
   }
 
+  function handleOpenAppointmentDetails(appointment: Appointment) {
+    updateStatusMutation.reset();
+    setSelectedAppointment(appointment);
+  }
+
   function handleStatusChange(appointment: Appointment, nextStatus: AppointmentStatus) {
     setSuccessMessage(null);
 
@@ -137,7 +140,7 @@ export function AgendaPage() {
     if (
       (nextStatus === "cancelled" || nextStatus === "no_show") &&
       !window.confirm(
-        `Alterar o status do agendamento de ${appointment.customer.name} para ${statusLabels[nextStatus]}?`,
+        `Alterar o status do agendamento de ${appointment.customer.name} para ${appointmentStatusLabels[nextStatus]}?`,
       )
     ) {
       return;
@@ -262,6 +265,7 @@ export function AgendaPage() {
                 isFetching={appointmentsQuery.isFetching}
                 isUpdating={updateStatusMutation.isPending}
                 key={group.barber.id}
+                onOpenDetails={handleOpenAppointmentDetails}
                 onStatusChange={handleStatusChange}
                 title={group.barber.name}
                 updatingId={updateStatusMutation.variables?.id}
@@ -273,6 +277,7 @@ export function AgendaPage() {
             appointments={appointments}
             isFetching={appointmentsQuery.isFetching}
             isUpdating={updateStatusMutation.isPending}
+            onOpenDetails={handleOpenAppointmentDetails}
             onStatusChange={handleStatusChange}
             updatingId={updateStatusMutation.variables?.id}
           />
@@ -291,6 +296,17 @@ export function AgendaPage() {
           }}
           services={servicesQuery.data ?? []}
           servicesError={servicesQuery.error}
+        />
+      ) : null}
+
+      {selectedAppointment ? (
+        <AppointmentDetailsModal
+          appointment={selectedAppointment}
+          error={updateStatusMutation.error}
+          isUpdating={updateStatusMutation.isPending}
+          onClose={() => setSelectedAppointment(null)}
+          onStatusChange={handleStatusChange}
+          updatingStatus={updateStatusMutation.variables?.status}
         />
       ) : null}
     </div>
@@ -845,6 +861,7 @@ type BarberAgendaGroupProps = {
   appointments: Appointment[];
   isFetching: boolean;
   isUpdating: boolean;
+  onOpenDetails: (appointment: Appointment) => void;
   onStatusChange: (appointment: Appointment, nextStatus: AppointmentStatus) => void;
   title?: string;
   updatingId?: string;
@@ -854,6 +871,7 @@ function BarberAgendaGroup({
   appointments,
   isFetching,
   isUpdating,
+  onOpenDetails,
   onStatusChange,
   title,
   updatingId,
@@ -886,7 +904,7 @@ function BarberAgendaGroup({
                   <h3 className="truncate text-base font-semibold text-text-primary">
                     {appointment.customer.name}
                   </h3>
-                  <StatusBadge status={appointment.status} />
+                  <AppointmentStatusBadge status={appointment.status} />
                 </div>
                 <dl className="mt-2 grid gap-1 text-sm text-text-secondary sm:grid-cols-2">
                   <InfoItem label="Telefone" value={appointment.customer.phone} />
@@ -896,7 +914,15 @@ function BarberAgendaGroup({
               </div>
 
               <div className="flex flex-wrap gap-2 lg:max-w-72 lg:justify-end">
-                {statusActions.map((action) => (
+                <Button
+                  className="px-3"
+                  onClick={() => onOpenDetails(appointment)}
+                  type="button"
+                  variant="secondary"
+                >
+                  Ver detalhes
+                </Button>
+                {appointmentStatusActions.map((action) => (
                   <Button
                     aria-label={`${action.label} agendamento de ${appointment.customer.name}`}
                     className="px-3"
@@ -973,15 +999,6 @@ function SelectField({ error, label, onChange, options, value }: SelectFieldProp
         </p>
       ) : null}
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: AppointmentStatus }) {
-  return (
-    <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-surface px-3 py-1 text-xs font-medium text-text-secondary shadow-[inset_0_0_0_1px_rgba(47,42,36,0.08)]">
-      <CalendarCheck aria-hidden="true" className="h-3.5 w-3.5" />
-      {statusLabels[status]}
-    </span>
   );
 }
 
