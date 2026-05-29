@@ -188,6 +188,83 @@ export async function ensureSlotIsAvailable(input: {
   };
 }
 
+export async function ensureTimeRangeIsAvailable(input: {
+  barbershopId: string;
+  barberId: string;
+  startAt: Date;
+  endAt: Date;
+  ignoredAppointmentId?: string;
+}) {
+  const dayStart = getUtcDayStart(input.startAt.toISOString().slice(0, 10));
+  const workingHour = await getWorkingHour(input.barbershopId, dayStart);
+
+  if (!workingHour || workingHour.isClosed) {
+    throw new AvailabilityError(
+      "Não é possível agendar fora do horário de funcionamento.",
+      400,
+    );
+  }
+
+  const startAtMinute = minutesSinceDayStart(dayStart, input.startAt);
+  const endAtMinute = minutesSinceDayStart(dayStart, input.endAt);
+
+  if (
+    startAtMinute < workingHour.opensAtMinute ||
+    endAtMinute > workingHour.closesAtMinute
+  ) {
+    throw new AvailabilityError(
+      "Não é possível agendar fora do horário de funcionamento.",
+      400,
+    );
+  }
+
+  const blockedTimeConflict = await prisma.blockedTime.findFirst({
+    where: {
+      barbershopId: input.barbershopId,
+      OR: [{ barberId: null }, { barberId: input.barberId }],
+      startAt: {
+        lt: input.endAt,
+      },
+      endAt: {
+        gt: input.startAt,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (blockedTimeConflict) {
+    throw new AvailabilityError("O horário selecionado não está disponível.", 409);
+  }
+
+  const appointmentConflict = await prisma.appointment.findFirst({
+    where: {
+      id: {
+        not: input.ignoredAppointmentId,
+      },
+      barbershopId: input.barbershopId,
+      barberId: input.barberId,
+      status: {
+        in: [AppointmentStatus.scheduled, AppointmentStatus.confirmed],
+      },
+      startAt: {
+        lt: input.endAt,
+      },
+      endAt: {
+        gt: input.startAt,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (appointmentConflict) {
+    throw new AvailabilityError("Barbeiro indisponível para este horário.", 409);
+  }
+}
+
 function buildAvailableSlots(input: {
   dayStart: Date;
   opensAtMinute: number;
@@ -252,6 +329,10 @@ function getUtcDayStart(date: string) {
 
 function addMinutes(date: Date, minutes: number) {
   return new Date(date.getTime() + minutes * 60 * 1000);
+}
+
+function minutesSinceDayStart(dayStart: Date, date: Date) {
+  return Math.floor((date.getTime() - dayStart.getTime()) / (60 * 1000));
 }
 
 async function getWorkingHour(barbershopId: string, dayStart: Date) {

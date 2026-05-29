@@ -3,6 +3,7 @@ import { AppointmentStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import {
   ensureSlotIsAvailable,
+  ensureTimeRangeIsAvailable,
   getSchedulingContext,
 } from "../availability/availability.service.js";
 import type {
@@ -258,6 +259,14 @@ export async function rescheduleAppointment(
   const endAt = new Date(
     input.startAt.getTime() + existingAppointment.service.durationMinutes * 60_000,
   );
+
+  await ensureTimeRangeIsAvailable({
+    barbershopId: barbershop.id,
+    barberId: barber.id,
+    startAt: input.startAt,
+    endAt,
+    ignoredAppointmentId: existingAppointment.id,
+  });
 
   const appointment = await prisma.appointment.update({
     where: {
