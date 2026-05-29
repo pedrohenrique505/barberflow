@@ -1,8 +1,14 @@
 import { useState } from "react";
 import { CalendarCheck, Check, Clock, X, XCircle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "../../components/ui/Button";
+import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
+import { Input } from "../../components/ui/Input";
+import { LoadingState } from "../../components/ui/LoadingState";
+import { Select } from "../../components/ui/Select";
+import { listBarbers } from "../barbers/barbers.api";
 import type { Appointment, AppointmentStatus } from "./appointments.api";
 
 export const appointmentStatusLabels: Record<AppointmentStatus, string> = {
@@ -42,8 +48,45 @@ export function AppointmentDetailsModal({
 }: AppointmentDetailsModalProps) {
   const [isReschedulePlaceholderOpen, setIsReschedulePlaceholderOpen] =
     useState(false);
+  const [selectedBarberId, setSelectedBarberId] = useState(appointment.barber.id);
+  const [selectedDate, setSelectedDate] = useState(() =>
+    toDateInputValue(appointment.startAt),
+  );
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const canReschedule =
     appointment.status === "scheduled" || appointment.status === "confirmed";
+  const barbersQuery = useQuery({
+    enabled: isReschedulePlaceholderOpen,
+    queryKey: ["barbers"],
+    queryFn: listBarbers,
+  });
+  const activeBarbers = (barbersQuery.data ?? []).filter((barber) => barber.isActive);
+
+  function resetRescheduleForm() {
+    setSelectedBarberId(appointment.barber.id);
+    setSelectedDate(toDateInputValue(appointment.startAt));
+    setSelectedSlot(null);
+  }
+
+  function openRescheduleForm() {
+    resetRescheduleForm();
+    setIsReschedulePlaceholderOpen(true);
+  }
+
+  function closeRescheduleForm() {
+    resetRescheduleForm();
+    setIsReschedulePlaceholderOpen(false);
+  }
+
+  function handleBarberChange(value: string) {
+    setSelectedBarberId(value);
+    setSelectedSlot(null);
+  }
+
+  function handleDateChange(value: string) {
+    setSelectedDate(value);
+    setSelectedSlot(null);
+  }
 
   return (
     <>
@@ -130,7 +173,7 @@ export function AppointmentDetailsModal({
                     aria-label={`Reagendar atendimento de ${appointment.customer.name}`}
                     className="px-3"
                     disabled={isUpdating}
-                    onClick={() => setIsReschedulePlaceholderOpen(true)}
+                    onClick={openRescheduleForm}
                     type="button"
                     variant="secondary"
                   >
@@ -170,25 +213,110 @@ export function AppointmentDetailsModal({
 
       {isReschedulePlaceholderOpen ? (
         <div
-          aria-labelledby="reschedule-placeholder-title"
+          aria-labelledby="reschedule-form-title"
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-end bg-black/40 p-0 sm:items-center sm:justify-center sm:p-4"
           role="dialog"
         >
-          <div className="w-full rounded-t-lg bg-surface p-5 shadow-[0_20px_60px_rgba(31,29,27,0.22)] sm:max-w-md sm:rounded-lg sm:p-6">
-            <h2
-              className="text-lg font-semibold text-text-primary"
-              id="reschedule-placeholder-title"
-            >
-              Reagendar horário
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-text-secondary">
-              O formulário de reagendamento será implementado no próximo passo.
-            </p>
-            <div className="mt-5 flex justify-end">
-              <Button onClick={() => setIsReschedulePlaceholderOpen(false)}>
-                Fechar
+          <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-lg bg-surface p-5 shadow-[0_20px_60px_rgba(31,29,27,0.22)] sm:max-w-xl sm:rounded-lg sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2
+                  className="text-lg font-semibold text-text-primary"
+                  id="reschedule-form-title"
+                >
+                  Reagendar horário
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-text-secondary">
+                  Escolha o barbeiro e a nova data para preparar o reagendamento.
+                </p>
+              </div>
+              <Button
+                aria-label="Fechar formulário de reagendamento"
+                className="min-h-10 px-3"
+                onClick={closeRescheduleForm}
+                variant="ghost"
+              >
+                <X aria-hidden="true" className="h-4 w-4" />
               </Button>
+            </div>
+
+            <div className="mt-5 rounded-lg bg-surface-muted p-4 shadow-[inset_0_0_0_1px_rgba(47,42,36,0.08)]">
+              <h3 className="text-sm font-semibold text-text-primary">
+                Agendamento atual
+              </h3>
+              <dl className="mt-3 grid gap-3 text-sm text-text-secondary sm:grid-cols-2">
+                <DetailItem label="Cliente" value={appointment.customer.name} />
+                <DetailItem label="Serviço" value={appointment.service.name} />
+                <DetailItem label="Barbeiro atual" value={appointment.barber.name} />
+                <DetailItem label="Data atual" value={formatDateLong(appointment.startAt)} />
+                <DetailItem
+                  label="Horário atual"
+                  value={`${formatTime(appointment.startAt)} - ${formatTime(
+                    appointment.endAt,
+                  )}`}
+                />
+              </dl>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              {barbersQuery.isLoading ? (
+                <LoadingState label="Carregando barbeiros..." />
+              ) : null}
+
+              {barbersQuery.error ? (
+                <ErrorState message="Não foi possível carregar os barbeiros." />
+              ) : null}
+
+              {!barbersQuery.isLoading && !barbersQuery.error ? (
+                activeBarbers.length > 0 ? (
+                  <form className="space-y-4">
+                    <Select
+                      label="Barbeiro"
+                      name="reschedule-barber"
+                      onChange={(event) => handleBarberChange(event.target.value)}
+                      options={activeBarbers.map((barber) => ({
+                        label: barber.name,
+                        value: barber.id,
+                      }))}
+                      value={selectedBarberId}
+                    />
+
+                    <Input
+                      label="Nova data"
+                      name="reschedule-date"
+                      onChange={(event) => handleDateChange(event.target.value)}
+                      type="date"
+                      value={selectedDate}
+                    />
+
+                    <div className="space-y-2">
+                      <span className="block text-sm font-medium text-text-primary">
+                        Novo horário
+                      </span>
+                      <div className="rounded-md bg-white px-3 py-3 text-sm text-text-muted shadow-[inset_0_0_0_1px_rgba(47,42,36,0.16)]">
+                        Selecione barbeiro e data para carregar os horários disponíveis.
+                      </div>
+                    </div>
+
+                    <p className="text-sm leading-6 text-text-secondary">
+                      A seleção de horário será implementada no próximo passo.
+                    </p>
+                  </form>
+                ) : (
+                  <EmptyState
+                    description="Cadastre ou ative um barbeiro antes de reagendar horários."
+                    title="Nenhum barbeiro ativo"
+                  />
+                )
+              ) : null}
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button onClick={closeRescheduleForm} variant="ghost">
+                Cancelar
+              </Button>
+              <Button disabled={selectedSlot === null}>Confirmar reagendamento</Button>
             </div>
           </div>
         </div>
@@ -229,6 +357,10 @@ function formatDateLong(value: string) {
     weekday: "long",
     year: "numeric",
   }).format(new Date(value));
+}
+
+function toDateInputValue(value: string) {
+  return value.slice(0, 10);
 }
 
 function formatTime(value: string) {
