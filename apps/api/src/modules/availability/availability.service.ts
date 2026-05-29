@@ -18,6 +18,12 @@ type BusyInterval = {
   endAt: Date;
 };
 
+type WorkingHourAvailability = {
+  opensAtMinute: number;
+  closesAtMinute: number;
+  isClosed: boolean;
+};
+
 export type SchedulingContext = {
   barbershop: {
     id: string;
@@ -53,9 +59,14 @@ export async function getAvailability(query: AvailabilityQuery) {
   });
   const dayStart = getUtcDayStart(query.date);
   const dayEnd = addMinutes(dayStart, 24 * 60);
-  const workingHour = await getWorkingHour(context.barbershop.id, dayStart);
+  const availability = await checkTimeRangeAvailability({
+    barbershopId: context.barbershop.id,
+    barberId: context.barber.id,
+    startAt: dayStart,
+    endAt: dayEnd,
+  });
 
-  if (!workingHour || workingHour.isClosed) {
+  if (!availability.workingHour || availability.workingHour.isClosed) {
     return formatAvailabilityResponse(
       query.date,
       context.service,
@@ -64,18 +75,12 @@ export async function getAvailability(query: AvailabilityQuery) {
     );
   }
 
-  const busyIntervals = await findBusyIntervals({
-    barbershopId: context.barbershop.id,
-    barberId: context.barber.id,
-    startAt: dayStart,
-    endAt: dayEnd,
-  });
   const slots = buildAvailableSlots({
     dayStart,
-    opensAtMinute: workingHour.opensAtMinute,
-    closesAtMinute: workingHour.closesAtMinute,
+    opensAtMinute: availability.workingHour.opensAtMinute,
+    closesAtMinute: availability.workingHour.closesAtMinute,
     durationInMinutes: context.service.durationMinutes,
-    busyIntervals,
+    busyIntervals: availability.busyIntervals,
   });
 
   return formatAvailabilityResponse(
@@ -154,25 +159,23 @@ export async function ensureSlotIsAvailable(input: {
   durationInMinutes: number;
 }) {
   const dayStart = getUtcDayStart(input.startAt.toISOString().slice(0, 10));
-  const dayEnd = addMinutes(dayStart, 24 * 60);
-  const workingHour = await getWorkingHour(input.barbershopId, dayStart);
-
-  if (!workingHour || workingHour.isClosed) {
-    throw new AvailabilityError("Barbearia fechada neste dia.", 400);
-  }
-
-  const busyIntervals = await findBusyIntervals({
+  const availability = await checkTimeRangeAvailability({
     barbershopId: input.barbershopId,
     barberId: input.barberId,
     startAt: dayStart,
-    endAt: dayEnd,
+    endAt: addMinutes(dayStart, 24 * 60),
   });
+
+  if (!availability.workingHour || availability.workingHour.isClosed) {
+    throw new AvailabilityError("Barbearia fechada neste dia.", 400);
+  }
+
   const slots = buildAvailableSlots({
     dayStart,
-    opensAtMinute: workingHour.opensAtMinute,
-    closesAtMinute: workingHour.closesAtMinute,
+    opensAtMinute: availability.workingHour.opensAtMinute,
+    closesAtMinute: availability.workingHour.closesAtMinute,
     durationInMinutes: input.durationInMinutes,
-    busyIntervals,
+    busyIntervals: availability.busyIntervals,
   });
   const selectedSlot = slots.find(
     (slot) => slot.startAt.getTime() === input.startAt.getTime(),
@@ -195,74 +198,57 @@ export async function ensureTimeRangeIsAvailable(input: {
   endAt: Date;
   ignoredAppointmentId?: string;
 }) {
-  const dayStart = getUtcDayStart(input.startAt.toISOString().slice(0, 10));
-  const workingHour = await getWorkingHour(input.barbershopId, dayStart);
-
-  if (!workingHour || workingHour.isClosed) {
-    throw new AvailabilityError(
-      "Não é possível agendar fora do horário de funcionamento.",
-      400,
-    );
-  }
-
-  const startAtMinute = minutesSinceDayStart(dayStart, input.startAt);
-  const endAtMinute = minutesSinceDayStart(dayStart, input.endAt);
-
-  if (
-    startAtMinute < workingHour.opensAtMinute ||
-    endAtMinute > workingHour.closesAtMinute
-  ) {
-    throw new AvailabilityError(
-      "Não é possível agendar fora do horário de funcionamento.",
-      400,
-    );
-  }
-
-  const blockedTimeConflict = await prisma.blockedTime.findFirst({
-    where: {
-      barbershopId: input.barbershopId,
-      OR: [{ barberId: null }, { barberId: input.barberId }],
-      startAt: {
-        lt: input.endAt,
-      },
-      endAt: {
-        gt: input.startAt,
-      },
-    },
-    select: {
-      id: true,
-    },
+  const availability = await checkTimeRangeAvailability({
+    barbershopId: input.barbershopId,
+    barberId: input.barberId,
+    startAt: input.startAt,
+    endAt: input.endAt,
+    excludeAppointmentId: input.ignoredAppointmentId,
   });
 
-  if (blockedTimeConflict) {
+  if (!availability.isWithinWorkingHours) {
+    throw new AvailabilityError(
+      "Não é possível agendar fora do horário de funcionamento.",
+      400,
+    );
+  }
+
+  if (availability.blockedTimeConflicts.length > 0) {
     throw new AvailabilityError("O horário selecionado não está disponível.", 409);
   }
 
-  const appointmentConflict = await prisma.appointment.findFirst({
-    where: {
-      id: {
-        not: input.ignoredAppointmentId,
-      },
-      barbershopId: input.barbershopId,
-      barberId: input.barberId,
-      status: {
-        in: [AppointmentStatus.scheduled, AppointmentStatus.confirmed],
-      },
-      startAt: {
-        lt: input.endAt,
-      },
-      endAt: {
-        gt: input.startAt,
-      },
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  if (appointmentConflict) {
+  if (availability.appointmentConflicts.length > 0) {
     throw new AvailabilityError("Barbeiro indisponível para este horário.", 409);
   }
+}
+
+export async function checkTimeRangeAvailability(input: {
+  barbershopId: string;
+  barberId: string;
+  startAt: Date;
+  endAt: Date;
+  excludeAppointmentId?: string;
+}) {
+  const dayStart = getUtcDayStart(input.startAt.toISOString().slice(0, 10));
+  const workingHour = await getWorkingHour(input.barbershopId, dayStart);
+  const { appointmentConflicts, blockedTimeConflicts } =
+    await findAvailabilityConflicts(input);
+  const isWithinWorkingHours = isTimeRangeWithinWorkingHours({
+    dayStart,
+    startAt: input.startAt,
+    endAt: input.endAt,
+    workingHour,
+  });
+  const busyIntervals = [...appointmentConflicts, ...blockedTimeConflicts];
+
+  return {
+    workingHour,
+    appointmentConflicts,
+    blockedTimeConflicts,
+    busyIntervals,
+    isWithinWorkingHours,
+    isAvailable: isWithinWorkingHours && busyIntervals.length === 0,
+  };
 }
 
 function buildAvailableSlots(input: {
@@ -353,15 +339,42 @@ async function getWorkingHour(barbershopId: string, dayStart: Date) {
   });
 }
 
-async function findBusyIntervals(input: {
+function isTimeRangeWithinWorkingHours(input: {
+  dayStart: Date;
+  startAt: Date;
+  endAt: Date;
+  workingHour: WorkingHourAvailability | null;
+}) {
+  if (!input.workingHour || input.workingHour.isClosed) {
+    return false;
+  }
+
+  const startAtMinute = minutesSinceDayStart(input.dayStart, input.startAt);
+  const endAtMinute = minutesSinceDayStart(input.dayStart, input.endAt);
+
+  return (
+    startAtMinute >= input.workingHour.opensAtMinute &&
+    endAtMinute <= input.workingHour.closesAtMinute
+  );
+}
+
+async function findAvailabilityConflicts(input: {
   barbershopId: string;
   barberId: string;
   startAt: Date;
   endAt: Date;
+  excludeAppointmentId?: string;
 }) {
-  const [appointments, blockedTimes] = await Promise.all([
+  const [appointmentConflicts, blockedTimeConflicts] = await Promise.all([
     prisma.appointment.findMany({
       where: {
+        ...(input.excludeAppointmentId
+          ? {
+              id: {
+                not: input.excludeAppointmentId,
+              },
+            }
+          : {}),
         barbershopId: input.barbershopId,
         barberId: input.barberId,
         status: {
@@ -397,7 +410,10 @@ async function findBusyIntervals(input: {
     }),
   ]);
 
-  return [...appointments, ...blockedTimes];
+  return {
+    appointmentConflicts,
+    blockedTimeConflicts,
+  };
 }
 
 function getWeekday(date: Date) {
