@@ -25,8 +25,10 @@ import { listBarbers, type Barber } from "../features/barbers/barbers.api";
 import {
   createBarbershop,
   getMyBarbershop,
+  updateMyBarbershop,
   type Barbershop,
   type CreateBarbershopPayload,
+  type UpdateBarbershopPayload,
 } from "../features/barbershops/barbershops.api";
 import {
   barbershopFormSchema,
@@ -74,6 +76,9 @@ const weekdays = [
 export function SettingsPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [barbershopSuccessMessage, setBarbershopSuccessMessage] = useState<
+    string | null
+  >(null);
 
   const { data, error, isLoading } = useQuery({
     queryKey: myBarbershopQueryKey,
@@ -84,7 +89,20 @@ export function SettingsPage() {
     mutationFn: createBarbershop,
     onSuccess: async (barbershop) => {
       queryClient.setQueryData(myBarbershopQueryKey, barbershop);
+      setBarbershopSuccessMessage(null);
       await queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: updateMyBarbershop,
+    onSuccess: async (barbershop) => {
+      queryClient.setQueryData(myBarbershopQueryKey, barbershop);
+      setBarbershopSuccessMessage("Dados da barbearia salvos.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] }),
+        queryClient.invalidateQueries({ queryKey: ["public-barbershop"] }),
+      ]);
     },
   });
 
@@ -123,7 +141,14 @@ export function SettingsPage() {
         <>
           <BarbershopDetails
             barbershop={data}
+            error={updateMutation.error}
+            isSubmitting={updateMutation.isPending}
             onOpenPublicPage={() => navigate(`/b/${data.slug}`)}
+            onSubmit={(formData) => {
+              setBarbershopSuccessMessage(null);
+              updateMutation.mutate(toUpdatePayload(formData));
+            }}
+            successMessage={barbershopSuccessMessage}
           />
           <WorkingHoursSection />
           <BlockedTimesSection />
@@ -822,14 +847,35 @@ function BarbershopCreateForm({
 
 type BarbershopDetailsProps = {
   barbershop: Barbershop;
+  error: unknown;
+  isSubmitting: boolean;
   onOpenPublicPage: () => void;
+  onSubmit: (data: BarbershopFormData) => void;
+  successMessage: string | null;
 };
 
 function BarbershopDetails({
   barbershop,
+  error,
+  isSubmitting,
   onOpenPublicPage,
+  onSubmit,
+  successMessage,
 }: BarbershopDetailsProps) {
   const publicPath = `/b/${barbershop.slug}`;
+  const {
+    formState: { errors },
+    handleSubmit,
+    register,
+    reset,
+  } = useForm<BarbershopFormData>({
+    defaultValues: getBarbershopDefaultValues(barbershop),
+    resolver: zodResolver(barbershopFormSchema),
+  });
+
+  useEffect(() => {
+    reset(getBarbershopDefaultValues(barbershop));
+  }, [barbershop, reset]);
 
   return (
     <div className="grid gap-5 lg:grid-cols-[1fr_18rem]">
@@ -847,17 +893,71 @@ function BarbershopDetails({
           </div>
         </div>
 
-        <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-          <InfoItem label="Nome" value={barbershop.name} />
-          <InfoItem label="Slug" value={barbershop.slug} />
-          <InfoItem label="Telefone" value={barbershop.phone || "Não informado"} />
-          <InfoItem label="Endereço" value={barbershop.address || "Não informado"} />
-          <InfoItem className="sm:col-span-2" label="Link público" value={publicPath} />
-        </dl>
+        {successMessage ? (
+          <div className="mt-5 rounded-lg bg-surface-muted px-4 py-3 text-sm font-medium text-text-primary shadow-[inset_0_0_0_1px_rgba(47,42,36,0.08)]">
+            {successMessage}
+          </div>
+        ) : null}
 
-        <div className="mt-6 rounded-lg bg-surface-muted px-4 py-3 text-sm text-text-secondary shadow-[inset_0_0_0_1px_rgba(47,42,36,0.08)]">
-          A edição dos dados da barbearia será implementada em uma próxima etapa.
-        </div>
+        {error ? (
+          <div className="mt-5">
+            <ErrorState
+              message={
+                error instanceof Error
+                  ? error.message
+                  : "Não foi possível salvar os dados da barbearia."
+              }
+              title="Falha ao salvar"
+            />
+          </div>
+        ) : null}
+
+        <form className="mt-6 space-y-4" onSubmit={handleSubmit(onSubmit)}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              error={errors.name?.message}
+              label="Nome da barbearia"
+              placeholder="Barbearia do Zé"
+              {...register("name")}
+            />
+            <div className="space-y-2">
+              <Input
+                autoCapitalize="none"
+                error={errors.slug?.message}
+                label="Slug"
+                placeholder="barbearia-do-ze"
+                {...register("slug")}
+              />
+              <p className="text-sm leading-5 text-text-secondary">
+                Alterar o slug muda o endereço público da barbearia.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              error={errors.phone?.message}
+              inputMode="tel"
+              label="Telefone"
+              placeholder="88999999999"
+              {...register("phone")}
+            />
+            <Input
+              error={errors.address?.message}
+              label="Endereço"
+              placeholder="Rua Exemplo, 123"
+              {...register("address")}
+            />
+          </div>
+
+          <InfoItem className="sm:col-span-2" label="Link público" value={publicPath} />
+
+          <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+            <Button disabled={isSubmitting} type="submit">
+              {isSubmitting ? "Salvando..." : "Salvar alterações"}
+            </Button>
+          </div>
+        </form>
       </Card>
 
       <Card className="h-fit p-5">
@@ -960,6 +1060,26 @@ function toCreatePayload(data: BarbershopFormData): CreateBarbershopPayload {
     slug: data.slug.trim(),
     phone: phone || undefined,
     address: address || undefined,
+  };
+}
+
+function toUpdatePayload(data: BarbershopFormData): UpdateBarbershopPayload {
+  return {
+    name: data.name.trim(),
+    slug: data.slug.trim(),
+    phone: data.phone?.trim() ?? "",
+    address: data.address?.trim() ?? "",
+  };
+}
+
+function getBarbershopDefaultValues(
+  barbershop: Barbershop,
+): BarbershopFormData {
+  return {
+    address: barbershop.address ?? "",
+    name: barbershop.name,
+    phone: barbershop.phone ?? "",
+    slug: barbershop.slug,
   };
 }
 

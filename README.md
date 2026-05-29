@@ -348,6 +348,34 @@ Resposta esperada quando o usuário ainda não cadastrou uma barbearia:
 null
 ```
 
+### Atualizar minha barbearia
+
+```bash
+curl -X PUT http://localhost:3333/me/barbershop \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI" \
+  -d '{
+    "name": "Barbearia do Zé",
+    "slug": "barbearia-do-ze",
+    "phone": "88999999999",
+    "address": "Rua Exemplo, 123"
+  }'
+```
+
+Resposta esperada:
+
+```json
+{
+  "id": "cl...",
+  "name": "Barbearia do Zé",
+  "slug": "barbearia-do-ze",
+  "phone": "88999999999",
+  "address": "Rua Exemplo, 123"
+}
+```
+
+O `slug` deve conter apenas letras minúsculas, números e hífens, e precisa ser único entre as barbearias.
+
 ## Serviços
 
 As rotas autenticadas de serviços usam a barbearia vinculada ao usuário logado. Não é possível informar outro `barbershopId` pelo payload.

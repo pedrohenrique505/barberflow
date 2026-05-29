@@ -15,6 +15,8 @@ export type CreateBarbershopPayload = {
   address?: string;
 };
 
+export type UpdateBarbershopPayload = CreateBarbershopPayload;
+
 export function getMyBarbershop() {
   return apiRequest<Barbershop | null>("/me/barbershop");
 }
@@ -22,6 +24,13 @@ export function getMyBarbershop() {
 export function createBarbershop(payload: CreateBarbershopPayload) {
   return apiRequest<Barbershop>("/barbershops", {
     method: "POST",
+    body: payload,
+  });
+}
+
+export function updateMyBarbershop(payload: UpdateBarbershopPayload) {
+  return apiRequest<Barbershop>("/me/barbershop", {
+    method: "PUT",
     body: payload,
   });
 }

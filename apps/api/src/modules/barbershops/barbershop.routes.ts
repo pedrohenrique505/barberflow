@@ -9,6 +9,7 @@ import {
   createBarbershop,
   getMyBarbershop,
   getPublicBarbershopBySlug,
+  updateMyBarbershop,
 } from "./barbershop.service.js";
 
 function parseData<T>(
@@ -58,6 +59,18 @@ export async function barbershopRoutes(app: FastifyInstance) {
     },
     async (request) => {
       return getMyBarbershop(request.user.sub);
+    },
+  );
+
+  app.put(
+    "/me/barbershop",
+    {
+      preHandler: [app.authenticate],
+    },
+    async (request) => {
+      const input = parseData(createBarbershopSchema, request.body);
+
+      return updateMyBarbershop(request.user.sub, input);
     },
   );
 }

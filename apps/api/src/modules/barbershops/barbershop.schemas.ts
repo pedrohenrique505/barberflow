@@ -19,4 +19,5 @@ export const barbershopSlugParamsSchema = z.object({
 });
 
 export type CreateBarbershopInput = z.infer<typeof createBarbershopSchema>;
+export type UpdateBarbershopInput = CreateBarbershopInput;
 export type BarbershopSlugParams = z.infer<typeof barbershopSlugParamsSchema>;
