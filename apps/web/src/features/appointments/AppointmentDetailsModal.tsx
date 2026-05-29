@@ -3,12 +3,18 @@ import { CalendarCheck, Check, Clock, X, XCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "../../components/ui/Button";
+import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { Input } from "../../components/ui/Input";
 import { LoadingState } from "../../components/ui/LoadingState";
 import { Select } from "../../components/ui/Select";
 import { listBarbers } from "../barbers/barbers.api";
+import { getMyBarbershop } from "../barbershops/barbershops.api";
+import {
+  getAvailability,
+  type PublicAvailabilitySlot,
+} from "../public-booking/public-booking.api";
 import type { Appointment, AppointmentStatus } from "./appointments.api";
 
 export const appointmentStatusLabels: Record<AppointmentStatus, string> = {
@@ -52,20 +58,58 @@ export function AppointmentDetailsModal({
   const [selectedDate, setSelectedDate] = useState(() =>
     toDateInputValue(appointment.startAt),
   );
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<PublicAvailabilitySlot | null>(
+    null,
+  );
+  const [showConfirmNotice, setShowConfirmNotice] = useState(false);
   const canReschedule =
     appointment.status === "scheduled" || appointment.status === "confirmed";
+  const barbershopQuery = useQuery({
+    enabled: isReschedulePlaceholderOpen,
+    queryKey: ["my-barbershop"],
+    queryFn: getMyBarbershop,
+  });
   const barbersQuery = useQuery({
     enabled: isReschedulePlaceholderOpen,
     queryKey: ["barbers"],
     queryFn: listBarbers,
   });
   const activeBarbers = (barbersQuery.data ?? []).filter((barber) => barber.isActive);
+  const selectedBarber = activeBarbers.find(
+    (barber) => barber.id === selectedBarberId,
+  );
+  const canLoadAvailability = Boolean(
+    isReschedulePlaceholderOpen &&
+      barbershopQuery.data?.slug &&
+      appointment.service.id &&
+      selectedBarberId &&
+      selectedDate,
+  );
+  const availabilityQuery = useQuery({
+    enabled: canLoadAvailability,
+    queryKey: [
+      "availability",
+      "reschedule",
+      barbershopQuery.data?.slug,
+      appointment.service.id,
+      selectedBarberId,
+      selectedDate,
+    ],
+    queryFn: () =>
+      getAvailability({
+        barberId: selectedBarberId,
+        barbershopSlug: barbershopQuery.data?.slug ?? "",
+        date: selectedDate,
+        serviceId: appointment.service.id,
+      }),
+  });
+  const availableSlots = availabilityQuery.data?.slots ?? [];
 
   function resetRescheduleForm() {
     setSelectedBarberId(appointment.barber.id);
     setSelectedDate(toDateInputValue(appointment.startAt));
     setSelectedSlot(null);
+    setShowConfirmNotice(false);
   }
 
   function openRescheduleForm() {
@@ -81,11 +125,22 @@ export function AppointmentDetailsModal({
   function handleBarberChange(value: string) {
     setSelectedBarberId(value);
     setSelectedSlot(null);
+    setShowConfirmNotice(false);
   }
 
   function handleDateChange(value: string) {
     setSelectedDate(value);
     setSelectedSlot(null);
+    setShowConfirmNotice(false);
+  }
+
+  function handleSelectSlot(slot: PublicAvailabilitySlot) {
+    setSelectedSlot(slot);
+    setShowConfirmNotice(false);
+  }
+
+  function handleConfirmReschedule() {
+    setShowConfirmNotice(true);
   }
 
   return (
@@ -249,12 +304,21 @@ export function AppointmentDetailsModal({
                 <DetailItem label="Cliente" value={appointment.customer.name} />
                 <DetailItem label="Serviço" value={appointment.service.name} />
                 <DetailItem label="Barbeiro atual" value={appointment.barber.name} />
+                <DetailItem
+                  label="Novo barbeiro"
+                  value={selectedBarber?.name ?? "Não selecionado"}
+                />
                 <DetailItem label="Data atual" value={formatDateLong(appointment.startAt)} />
+                <DetailItem label="Nova data" value={formatDateInput(selectedDate)} />
                 <DetailItem
                   label="Horário atual"
                   value={`${formatTime(appointment.startAt)} - ${formatTime(
                     appointment.endAt,
                   )}`}
+                />
+                <DetailItem
+                  label="Novo horário"
+                  value={selectedSlot?.label ?? "Não selecionado"}
                 />
               </dl>
             </div>
@@ -290,18 +354,24 @@ export function AppointmentDetailsModal({
                       value={selectedDate}
                     />
 
-                    <div className="space-y-2">
-                      <span className="block text-sm font-medium text-text-primary">
-                        Novo horário
-                      </span>
-                      <div className="rounded-md bg-white px-3 py-3 text-sm text-text-muted shadow-[inset_0_0_0_1px_rgba(47,42,36,0.16)]">
-                        Selecione barbeiro e data para carregar os horários disponíveis.
-                      </div>
-                    </div>
+                    <RescheduleSlotsField
+                      canLoadAvailability={canLoadAvailability}
+                      error={availabilityQuery.error ?? barbershopQuery.error}
+                      isLoading={
+                        barbershopQuery.isLoading ||
+                        availabilityQuery.isLoading ||
+                        availabilityQuery.isFetching
+                      }
+                      onSelectSlot={handleSelectSlot}
+                      selectedSlot={selectedSlot}
+                      slots={availableSlots}
+                    />
 
-                    <p className="text-sm leading-6 text-text-secondary">
-                      A seleção de horário será implementada no próximo passo.
-                    </p>
+                    {showConfirmNotice ? (
+                      <p className="text-sm leading-6 text-text-secondary">
+                        A confirmação do reagendamento será implementada no próximo passo.
+                      </p>
+                    ) : null}
                   </form>
                 ) : (
                   <EmptyState
@@ -316,7 +386,9 @@ export function AppointmentDetailsModal({
               <Button onClick={closeRescheduleForm} variant="ghost">
                 Cancelar
               </Button>
-              <Button disabled={selectedSlot === null}>Confirmar reagendamento</Button>
+              <Button disabled={selectedSlot === null} onClick={handleConfirmReschedule}>
+                Confirmar reagendamento
+              </Button>
             </div>
           </div>
         </div>
@@ -331,6 +403,74 @@ export function AppointmentStatusBadge({ status }: { status: AppointmentStatus }
       <CalendarCheck aria-hidden="true" className="h-3.5 w-3.5" />
       {appointmentStatusLabels[status]}
     </span>
+  );
+}
+
+type RescheduleSlotsFieldProps = {
+  canLoadAvailability: boolean;
+  error: unknown;
+  isLoading: boolean;
+  onSelectSlot: (slot: PublicAvailabilitySlot) => void;
+  selectedSlot: PublicAvailabilitySlot | null;
+  slots: PublicAvailabilitySlot[];
+};
+
+function RescheduleSlotsField({
+  canLoadAvailability,
+  error,
+  isLoading,
+  onSelectSlot,
+  selectedSlot,
+  slots,
+}: RescheduleSlotsFieldProps) {
+  return (
+    <div className="space-y-2">
+      <span className="block text-sm font-medium text-text-primary">Novo horário</span>
+
+      {!canLoadAvailability ? (
+        <div className="rounded-md bg-white px-3 py-3 text-sm text-text-muted shadow-[inset_0_0_0_1px_rgba(47,42,36,0.16)]">
+          Selecione barbeiro e data para carregar os horários disponíveis.
+        </div>
+      ) : null}
+
+      {canLoadAvailability && isLoading ? (
+        <LoadingState label="Carregando horários disponíveis..." />
+      ) : null}
+
+      {canLoadAvailability && error ? (
+        <ErrorState message="Não foi possível carregar os horários disponíveis." />
+      ) : null}
+
+      {canLoadAvailability && !isLoading && !error ? (
+        slots.length > 0 ? (
+          <Card className="bg-surface-muted p-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {slots.map((slot) => {
+                const isSelected = selectedSlot?.startAt === slot.startAt;
+
+                return (
+                  <Button
+                    aria-pressed={isSelected}
+                    className="tabular-nums"
+                    key={slot.startAt}
+                    onClick={() => onSelectSlot(slot)}
+                    type="button"
+                    variant={isSelected ? "primary" : "secondary"}
+                  >
+                    {slot.label}
+                  </Button>
+                );
+              })}
+            </div>
+          </Card>
+        ) : (
+          <EmptyState
+            description="Escolha outra data ou barbeiro para encontrar novos horários."
+            title="Nenhum horário disponível para esta data."
+          />
+        )
+      ) : null}
+    </div>
   );
 }
 
@@ -361,6 +501,14 @@ function formatDateLong(value: string) {
 
 function toDateInputValue(value: string) {
   return value.slice(0, 10);
+}
+
+function formatDateInput(value: string) {
+  if (!value) {
+    return "Não selecionada";
+  }
+
+  return formatDateLong(`${value}T00:00:00.000Z`);
 }
 
 function formatTime(value: string) {
