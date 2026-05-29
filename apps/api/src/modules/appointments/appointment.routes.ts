@@ -4,12 +4,14 @@ import {
   appointmentIdParamsSchema,
   createPublicAppointmentSchema,
   listAppointmentsQuerySchema,
+  rescheduleAppointmentSchema,
   updateAppointmentStatusSchema,
 } from "./appointment.schemas.js";
 import {
   AppointmentError,
   createPublicAppointment,
   listAppointments,
+  rescheduleAppointment,
   updateAppointmentStatus,
 } from "./appointment.service.js";
 
@@ -63,6 +65,19 @@ export async function appointmentRoutes(app: FastifyInstance) {
       const input = parseData(updateAppointmentStatusSchema, request.body);
 
       return updateAppointmentStatus(request.user.sub, id, input);
+    },
+  );
+
+  app.patch(
+    "/appointments/:id/reschedule",
+    {
+      preHandler: [app.authenticate],
+    },
+    async (request) => {
+      const { id } = parseData(appointmentIdParamsSchema, request.params);
+      const input = parseData(rescheduleAppointmentSchema, request.body);
+
+      return rescheduleAppointment(request.user.sub, id, input);
     },
   );
 }

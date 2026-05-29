@@ -8,6 +8,7 @@ import {
 import type {
   CreatePublicAppointmentInput,
   ListAppointmentsQuery,
+  RescheduleAppointmentInput,
   UpdateAppointmentStatusInput,
 } from "./appointment.schemas.js";
 
@@ -207,6 +208,65 @@ export async function updateAppointmentStatus(
     },
     data: {
       status: input.status,
+    },
+    select: appointmentSelect,
+  });
+
+  return formatAppointment(appointment);
+}
+
+export async function rescheduleAppointment(
+  ownerId: string,
+  appointmentId: string,
+  input: RescheduleAppointmentInput,
+) {
+  const barbershop = await getRequiredOwnerBarbershop(ownerId);
+  const existingAppointment = await prisma.appointment.findFirst({
+    where: {
+      id: appointmentId,
+      barbershopId: barbershop.id,
+    },
+    select: {
+      id: true,
+      service: {
+        select: {
+          durationMinutes: true,
+        },
+      },
+    },
+  });
+
+  if (!existingAppointment) {
+    throw new AppointmentError("Agendamento não encontrado.", 404);
+  }
+
+  const barber = await prisma.barber.findFirst({
+    where: {
+      id: input.barberId,
+      barbershopId: barbershop.id,
+      isActive: true,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!barber) {
+    throw new AppointmentError("Barbeiro não encontrado.", 404);
+  }
+
+  const endAt = new Date(
+    input.startAt.getTime() + existingAppointment.service.durationMinutes * 60_000,
+  );
+
+  const appointment = await prisma.appointment.update({
+    where: {
+      id: existingAppointment.id,
+    },
+    data: {
+      barberId: barber.id,
+      startAt: input.startAt,
+      endAt,
     },
     select: appointmentSelect,
   });

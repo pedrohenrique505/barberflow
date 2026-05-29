@@ -62,6 +62,11 @@ export const updateAppointmentStatusSchema = z.object({
   }),
 });
 
+export const rescheduleAppointmentSchema = z.object({
+  barberId: z.string().trim().min(1, "Barbeiro é obrigatório."),
+  startAt: dateTimeSchema("Horário"),
+});
+
 export type CreatePublicAppointmentInput = z.infer<
   typeof createPublicAppointmentSchema
 >;
@@ -69,4 +74,7 @@ export type ListAppointmentsQuery = z.infer<typeof listAppointmentsQuerySchema>;
 export type AppointmentIdParams = z.infer<typeof appointmentIdParamsSchema>;
 export type UpdateAppointmentStatusInput = z.infer<
   typeof updateAppointmentStatusSchema
+>;
+export type RescheduleAppointmentInput = z.infer<
+  typeof rescheduleAppointmentSchema
 >;
