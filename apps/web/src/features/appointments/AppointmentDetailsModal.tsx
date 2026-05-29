@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CalendarCheck, Check, Clock, X, XCircle } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -15,7 +15,12 @@ import {
   getAvailability,
   type PublicAvailabilitySlot,
 } from "../public-booking/public-booking.api";
-import type { Appointment, AppointmentStatus } from "./appointments.api";
+import {
+  rescheduleAppointment,
+  type Appointment,
+  type AppointmentStatus,
+} from "./appointments.api";
+import { ApiError } from "../../lib/api";
 
 export const appointmentStatusLabels: Record<AppointmentStatus, string> = {
   scheduled: "Agendado",
@@ -40,6 +45,7 @@ type AppointmentDetailsModalProps = {
   error?: unknown;
   isUpdating: boolean;
   onClose: () => void;
+  onRescheduled: (appointment: Appointment) => void;
   onStatusChange: (appointment: Appointment, nextStatus: AppointmentStatus) => void;
   updatingStatus?: AppointmentStatus;
 };
@@ -49,9 +55,11 @@ export function AppointmentDetailsModal({
   error,
   isUpdating,
   onClose,
+  onRescheduled,
   onStatusChange,
   updatingStatus,
 }: AppointmentDetailsModalProps) {
+  const queryClient = useQueryClient();
   const [isReschedulePlaceholderOpen, setIsReschedulePlaceholderOpen] =
     useState(false);
   const [selectedBarberId, setSelectedBarberId] = useState(appointment.barber.id);
@@ -61,7 +69,6 @@ export function AppointmentDetailsModal({
   const [selectedSlot, setSelectedSlot] = useState<PublicAvailabilitySlot | null>(
     null,
   );
-  const [showConfirmNotice, setShowConfirmNotice] = useState(false);
   const canReschedule =
     appointment.status === "scheduled" || appointment.status === "confirmed";
   const barbershopQuery = useQuery({
@@ -85,16 +92,17 @@ export function AppointmentDetailsModal({
       selectedBarberId &&
       selectedDate,
   );
+  const availabilityQueryKey = [
+    "availability",
+    "reschedule",
+    barbershopQuery.data?.slug,
+    appointment.service.id,
+    selectedBarberId,
+    selectedDate,
+  ];
   const availabilityQuery = useQuery({
     enabled: canLoadAvailability,
-    queryKey: [
-      "availability",
-      "reschedule",
-      barbershopQuery.data?.slug,
-      appointment.service.id,
-      selectedBarberId,
-      selectedDate,
-    ],
+    queryKey: availabilityQueryKey,
     queryFn: () =>
       getAvailability({
         barberId: selectedBarberId,
@@ -104,12 +112,37 @@ export function AppointmentDetailsModal({
       }),
   });
   const availableSlots = availabilityQuery.data?.slots ?? [];
+  const canConfirmReschedule = Boolean(
+    selectedBarberId && selectedDate && selectedSlot,
+  );
+  const rescheduleMutation = useMutation({
+    mutationFn: () => {
+      if (!selectedSlot) {
+        throw new Error("Selecione um horário para reagendar.");
+      }
+
+      return rescheduleAppointment(appointment.id, {
+        barberId: selectedBarberId,
+        startAt: selectedSlot.startAt,
+      });
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 409) {
+        setSelectedSlot(null);
+        void queryClient.invalidateQueries({ queryKey: availabilityQueryKey });
+      }
+    },
+    onSuccess: (updatedAppointment) => {
+      closeRescheduleForm();
+      onRescheduled(updatedAppointment);
+    },
+  });
 
   function resetRescheduleForm() {
     setSelectedBarberId(appointment.barber.id);
     setSelectedDate(toDateInputValue(appointment.startAt));
     setSelectedSlot(null);
-    setShowConfirmNotice(false);
+    rescheduleMutation.reset();
   }
 
   function openRescheduleForm() {
@@ -125,22 +158,26 @@ export function AppointmentDetailsModal({
   function handleBarberChange(value: string) {
     setSelectedBarberId(value);
     setSelectedSlot(null);
-    setShowConfirmNotice(false);
+    rescheduleMutation.reset();
   }
 
   function handleDateChange(value: string) {
     setSelectedDate(value);
     setSelectedSlot(null);
-    setShowConfirmNotice(false);
+    rescheduleMutation.reset();
   }
 
   function handleSelectSlot(slot: PublicAvailabilitySlot) {
     setSelectedSlot(slot);
-    setShowConfirmNotice(false);
+    rescheduleMutation.reset();
   }
 
   function handleConfirmReschedule() {
-    setShowConfirmNotice(true);
+    if (!canConfirmReschedule || rescheduleMutation.isPending) {
+      return;
+    }
+
+    rescheduleMutation.mutate();
   }
 
   return (
@@ -367,10 +404,14 @@ export function AppointmentDetailsModal({
                       slots={availableSlots}
                     />
 
-                    {showConfirmNotice ? (
-                      <p className="text-sm leading-6 text-text-secondary">
-                        A confirmação do reagendamento será implementada no próximo passo.
-                      </p>
+                    {rescheduleMutation.error ? (
+                      <ErrorState
+                        message={
+                          rescheduleMutation.error instanceof Error
+                            ? rescheduleMutation.error.message
+                            : "Não foi possível reagendar o agendamento."
+                        }
+                      />
                     ) : null}
                   </form>
                 ) : (
@@ -386,8 +427,13 @@ export function AppointmentDetailsModal({
               <Button onClick={closeRescheduleForm} variant="ghost">
                 Cancelar
               </Button>
-              <Button disabled={selectedSlot === null} onClick={handleConfirmReschedule}>
-                Confirmar reagendamento
+              <Button
+                disabled={!canConfirmReschedule || rescheduleMutation.isPending}
+                onClick={handleConfirmReschedule}
+              >
+                {rescheduleMutation.isPending
+                  ? "Reagendando..."
+                  : "Confirmar reagendamento"}
               </Button>
             </div>
           </div>

@@ -121,6 +121,12 @@ export function AppointmentsPage() {
     updateStatusMutation.mutate({ id: appointment.id, status: nextStatus });
   }
 
+  async function handleAppointmentRescheduled() {
+    await queryClient.invalidateQueries({ queryKey: appointmentsQueryKey });
+    setSelectedAppointment(null);
+    setSuccessMessage("Agendamento reagendado com sucesso.");
+  }
+
   if (isLoading) {
     return <LoadingState label="Carregando agendamentos..." />;
   }
@@ -245,6 +251,7 @@ export function AppointmentsPage() {
           error={updateStatusMutation.error}
           isUpdating={updateStatusMutation.isPending}
           onClose={() => setSelectedAppointment(null)}
+          onRescheduled={handleAppointmentRescheduled}
           onStatusChange={handleStatusChange}
           updatingStatus={updateStatusMutation.variables?.status}
         />

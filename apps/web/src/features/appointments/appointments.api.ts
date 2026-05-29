@@ -36,6 +36,11 @@ export type ListAppointmentsParams = {
   barberId?: string;
 };
 
+export type RescheduleAppointmentPayload = {
+  barberId: string;
+  startAt: string;
+};
+
 export function listAppointments(params: ListAppointmentsParams = {}) {
   const query = new URLSearchParams();
 
@@ -68,5 +73,15 @@ export function updateAppointmentStatus(
   return apiRequest<Appointment>(`/appointments/${id}/status`, {
     method: "PATCH",
     body: { status },
+  });
+}
+
+export function rescheduleAppointment(
+  id: string,
+  payload: RescheduleAppointmentPayload,
+) {
+  return apiRequest<Appointment>(`/appointments/${id}/reschedule`, {
+    method: "PATCH",
+    body: payload,
   });
 }

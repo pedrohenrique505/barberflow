@@ -149,6 +149,12 @@ export function AgendaPage() {
     updateStatusMutation.mutate({ id: appointment.id, status: nextStatus });
   }
 
+  async function handleAppointmentRescheduled() {
+    await queryClient.invalidateQueries({ queryKey: appointmentsQueryKey });
+    setSelectedAppointment(null);
+    setSuccessMessage("Agendamento reagendado com sucesso.");
+  }
+
   if (appointmentsQuery.isLoading || barbersQuery.isLoading) {
     return <LoadingState label="Carregando agenda..." />;
   }
@@ -305,6 +311,7 @@ export function AgendaPage() {
           error={updateStatusMutation.error}
           isUpdating={updateStatusMutation.isPending}
           onClose={() => setSelectedAppointment(null)}
+          onRescheduled={handleAppointmentRescheduled}
           onStatusChange={handleStatusChange}
           updatingStatus={updateStatusMutation.variables?.status}
         />
