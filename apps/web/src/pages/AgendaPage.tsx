@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarCheck,
@@ -9,6 +10,8 @@ import {
   XCircle,
 } from "lucide-react";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -26,6 +29,7 @@ import {
 import { listBarbers, type Barber } from "../features/barbers/barbers.api";
 import { getMyBarbershop } from "../features/barbershops/barbershops.api";
 import {
+  createAppointment,
   getAvailability,
   type PublicAvailabilitySlot,
 } from "../features/public-booking/public-booking.api";
@@ -36,6 +40,25 @@ const barbersQueryKey = ["barbers"];
 const myBarbershopQueryKey = ["my-barbershop"];
 const servicesQueryKey = ["services"];
 const availabilityQueryKey = ["availability"];
+
+const newAppointmentSchema = z.object({
+  barberId: z.string().min(1, "Selecione um barbeiro."),
+  customerName: z
+    .string()
+    .trim()
+    .min(1, "Informe o nome do cliente.")
+    .min(2, "Informe um nome válido."),
+  customerPhone: z
+    .string()
+    .trim()
+    .min(1, "Informe o telefone do cliente.")
+    .min(8, "Informe um telefone válido."),
+  date: z.string().min(1, "Selecione uma data."),
+  serviceId: z.string().min(1, "Selecione um serviço."),
+  slotStartAt: z.string().min(1, "Selecione um horário."),
+});
+
+type NewAppointmentFormData = z.infer<typeof newAppointmentSchema>;
 
 const statusLabels: Record<AppointmentStatus, string> = {
   scheduled: "Agendado",
@@ -260,6 +283,11 @@ export function AgendaPage() {
           barbers={barbersQuery.data ?? []}
           isLoading={servicesQuery.isLoading || servicesQuery.isFetching}
           onClose={() => setIsNewAppointmentOpen(false)}
+          onCreated={(appointmentDate) => {
+            setSelectedDate(appointmentDate);
+            setSuccessMessage("Agendamento criado com sucesso.");
+            setIsNewAppointmentOpen(false);
+          }}
           services={servicesQuery.data ?? []}
           servicesError={servicesQuery.error}
         />
@@ -272,6 +300,7 @@ type NewAppointmentDrawerProps = {
   barbers: Barber[];
   isLoading: boolean;
   onClose: () => void;
+  onCreated: (appointmentDate: string) => void;
   services: Service[];
   servicesError: unknown;
 };
@@ -280,17 +309,38 @@ function NewAppointmentDrawer({
   barbers,
   isLoading,
   onClose,
+  onCreated,
   services,
   servicesError,
 }: NewAppointmentDrawerProps) {
-  const [selectedServiceId, setSelectedServiceId] = useState("");
-  const [selectedBarberId, setSelectedBarberId] = useState("");
-  const [selectedDate, setSelectedDate] = useState("");
   const [selectedSlot, setSelectedSlot] = useState<PublicAvailabilitySlot | null>(
     null,
   );
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
+  const queryClient = useQueryClient();
+  const {
+    formState: { errors },
+    handleSubmit,
+    register,
+    reset,
+    setError,
+    setValue,
+    watch,
+  } = useForm<NewAppointmentFormData>({
+    defaultValues: {
+      barberId: "",
+      customerName: "",
+      customerPhone: "",
+      date: "",
+      serviceId: "",
+      slotStartAt: "",
+    },
+    resolver: zodResolver(newAppointmentSchema),
+  });
+  const selectedServiceId = watch("serviceId");
+  const selectedBarberId = watch("barberId");
+  const selectedDate = watch("date");
+  const customerName = watch("customerName");
+  const customerPhone = watch("customerPhone");
 
   const activeServices = services.filter((service) => service.isActive);
   const activeBarbers = barbers.filter((barber) => barber.isActive);
@@ -303,6 +353,16 @@ function NewAppointmentDrawer({
   const barbershopQuery = useQuery({
     queryKey: myBarbershopQueryKey,
     queryFn: getMyBarbershop,
+  });
+  const createAppointmentMutation = useMutation({
+    mutationFn: createAppointment,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: appointmentsQueryKey });
+      const appointmentDate = selectedDate;
+      reset();
+      setSelectedSlot(null);
+      onCreated(appointmentDate);
+    },
   });
   const canFetchAvailability = Boolean(
     barbershopQuery.data?.slug &&
@@ -330,19 +390,62 @@ function NewAppointmentDrawer({
   const slots = availabilityQuery.data?.slots ?? [];
 
   function handleServiceChange(value: string) {
-    setSelectedServiceId(value);
-    setSelectedSlot(null);
+    setValue("serviceId", value, { shouldValidate: true });
+    clearSelectedSlot();
   }
 
   function handleBarberChange(value: string) {
-    setSelectedBarberId(value);
-    setSelectedSlot(null);
+    setValue("barberId", value, { shouldValidate: true });
+    clearSelectedSlot();
   }
 
   function handleDateChange(value: string) {
-    setSelectedDate(value);
-    setSelectedSlot(null);
+    setValue("date", value, { shouldValidate: true });
+    clearSelectedSlot();
   }
+
+  function handleSlotChange(slot: PublicAvailabilitySlot) {
+    setSelectedSlot(slot);
+    setValue("slotStartAt", slot.startAt, { shouldValidate: true });
+  }
+
+  function clearSelectedSlot() {
+    createAppointmentMutation.reset();
+    setSelectedSlot(null);
+    setValue("slotStartAt", "", { shouldValidate: true });
+  }
+
+  function handleClose() {
+    reset();
+    setSelectedSlot(null);
+    createAppointmentMutation.reset();
+    onClose();
+  }
+
+  const handleCreateAppointment = handleSubmit((data) => {
+    createAppointmentMutation.reset();
+
+    if (!barbershopQuery.data?.slug) {
+      setError("root", {
+        message: "Cadastre uma barbearia antes de criar agendamentos manuais.",
+      });
+      return;
+    }
+
+    if (!selectedSlot) {
+      setError("slotStartAt", { message: "Selecione um horário." });
+      return;
+    }
+
+    createAppointmentMutation.mutate({
+      barberId: data.barberId,
+      barbershopSlug: barbershopQuery.data.slug,
+      customerName: data.customerName.trim(),
+      customerPhone: data.customerPhone.trim(),
+      serviceId: data.serviceId,
+      startAt: selectedSlot.startAt,
+    });
+  });
 
   return (
     <div
@@ -369,7 +472,7 @@ function NewAppointmentDrawer({
           <Button
             aria-label="Fechar novo agendamento"
             className="min-h-10 px-3"
-            onClick={onClose}
+            onClick={handleClose}
             variant="ghost"
           >
             <X aria-hidden="true" className="h-4 w-4" />
@@ -407,10 +510,11 @@ function NewAppointmentDrawer({
           ) : (
             <form
               className="space-y-4"
-              onSubmit={(event) => event.preventDefault()}
+              onSubmit={handleCreateAppointment}
             >
               <div className="grid gap-4 sm:grid-cols-2">
                 <SelectField
+                  error={errors.serviceId?.message}
                   label="Serviço"
                   onChange={handleServiceChange}
                   options={[
@@ -423,6 +527,7 @@ function NewAppointmentDrawer({
                   value={selectedServiceId}
                 />
                 <SelectField
+                  error={errors.barberId?.message}
                   label="Barbeiro"
                   onChange={handleBarberChange}
                   options={[
@@ -438,6 +543,7 @@ function NewAppointmentDrawer({
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <Input
+                  error={errors.date?.message}
                   label="Data"
                   onChange={(event) => handleDateChange(event.target.value)}
                   type="date"
@@ -484,7 +590,7 @@ function NewAppointmentDrawer({
                           aria-pressed={isSelected}
                           className="tabular-nums"
                           key={slot.startAt}
-                          onClick={() => setSelectedSlot(slot)}
+                          onClick={() => handleSlotChange(slot)}
                           type="button"
                           variant={isSelected ? "primary" : "secondary"}
                         >
@@ -494,23 +600,24 @@ function NewAppointmentDrawer({
                     })}
                   </div>
                 )}
+                {errors.slotStartAt ? (
+                  <p className="text-sm text-danger">{errors.slotStartAt.message}</p>
+                ) : null}
               </section>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <Input
-                  disabled
+                  error={errors.customerName?.message}
                   label="Nome do cliente"
-                  onChange={(event) => setCustomerName(event.target.value)}
-                  placeholder="Cliente será informado no próximo passo"
-                  value={customerName}
+                  placeholder="Maria Souza"
+                  {...register("customerName")}
                 />
                 <Input
-                  disabled
+                  error={errors.customerPhone?.message}
                   inputMode="tel"
                   label="Telefone do cliente"
-                  onChange={(event) => setCustomerPhone(event.target.value)}
-                  placeholder="Telefone será informado no próximo passo"
-                  value={customerPhone}
+                  placeholder="88999999999"
+                  {...register("customerPhone")}
                 />
               </div>
 
@@ -535,19 +642,43 @@ function NewAppointmentDrawer({
                     label="Horário"
                     value={selectedSlot?.label ?? "Não selecionado"}
                   />
+                  <SummaryItem
+                    label="Cliente"
+                    value={customerName.trim() || "Não informado"}
+                  />
+                  <SummaryItem
+                    label="Telefone"
+                    value={customerPhone.trim() || "Não informado"}
+                  />
                 </dl>
               </div>
 
-              <div className="rounded-lg bg-surface-muted px-4 py-3 text-sm text-text-secondary shadow-[inset_0_0_0_1px_rgba(47,42,36,0.08)]">
-                O cadastro do cliente será implementado no próximo passo.
-              </div>
+              {createAppointmentMutation.error || errors.root ? (
+                <ErrorState
+                  message={
+                    errors.root?.message ??
+                    getErrorMessage(
+                      createAppointmentMutation.error,
+                      "Não foi possível criar o agendamento.",
+                    )
+                  }
+                  title="Erro ao criar agendamento"
+                />
+              ) : null}
 
               <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-                <Button onClick={onClose} type="button" variant="secondary">
+                <Button
+                  disabled={createAppointmentMutation.isPending}
+                  onClick={handleClose}
+                  type="button"
+                  variant="secondary"
+                >
                   Cancelar
                 </Button>
-                <Button disabled type="button">
-                  Continuar
+                <Button disabled={createAppointmentMutation.isPending} type="submit">
+                  {createAppointmentMutation.isPending
+                    ? "Criando..."
+                    : "Criar agendamento"}
                 </Button>
               </div>
             </form>
@@ -663,14 +794,16 @@ function InfoItem({ label, value }: { label: string; value: string }) {
 }
 
 type SelectFieldProps = {
+  error?: string;
   label: string;
   onChange: (value: string) => void;
   options: Array<{ label: string; value: string }>;
   value: string;
 };
 
-function SelectField({ label, onChange, options, value }: SelectFieldProps) {
+function SelectField({ error, label, onChange, options, value }: SelectFieldProps) {
   const id = label.toLowerCase().replace(/\s+/g, "-");
+  const errorId = error ? `${id}-error` : undefined;
 
   return (
     <div className="space-y-2">
@@ -678,6 +811,8 @@ function SelectField({ label, onChange, options, value }: SelectFieldProps) {
         {label}
       </label>
       <select
+        aria-describedby={errorId}
+        aria-invalid={Boolean(error)}
         className="min-h-11 w-full rounded-md bg-white px-3 py-2 text-sm text-text-primary shadow-[inset_0_0_0_1px_rgba(47,42,36,0.16)] outline-none transition-shadow duration-150 ease-out focus:shadow-[inset_0_0_0_2px_rgba(47,42,36,0.72)]"
         id={id}
         onChange={(event) => onChange(event.target.value)}
@@ -689,6 +824,11 @@ function SelectField({ label, onChange, options, value }: SelectFieldProps) {
           </option>
         ))}
       </select>
+      {error ? (
+        <p className="text-sm text-danger" id={errorId}>
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
