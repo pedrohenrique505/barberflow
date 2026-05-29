@@ -1,5 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarCheck, Check, ChevronLeft, ChevronRight, XCircle } from "lucide-react";
+import {
+  CalendarCheck,
+  CalendarPlus,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  XCircle,
+} from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "../components/ui/Button";
@@ -16,9 +24,11 @@ import {
   type ListAppointmentsParams,
 } from "../features/appointments/appointments.api";
 import { listBarbers, type Barber } from "../features/barbers/barbers.api";
+import { listServices, type Service } from "../features/services/services.api";
 
 const appointmentsQueryKey = ["appointments"];
 const barbersQueryKey = ["barbers"];
+const servicesQueryKey = ["services"];
 
 const statusLabels: Record<AppointmentStatus, string> = {
   scheduled: "Agendado",
@@ -40,6 +50,7 @@ export function AgendaPage() {
   const [selectedDate, setSelectedDate] = useState(() => toDateInputValue(new Date()));
   const [selectedBarberId, setSelectedBarberId] = useState("");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isNewAppointmentOpen, setIsNewAppointmentOpen] = useState(false);
 
   const queryParams = toAgendaQueryParams(selectedDate, selectedBarberId);
   const appointmentsQuery = useQuery({
@@ -49,6 +60,11 @@ export function AgendaPage() {
   const barbersQuery = useQuery({
     queryKey: barbersQueryKey,
     queryFn: listBarbers,
+  });
+  const servicesQuery = useQuery({
+    enabled: isNewAppointmentOpen,
+    queryKey: servicesQueryKey,
+    queryFn: listServices,
   });
 
   const updateStatusMutation = useMutation({
@@ -130,6 +146,10 @@ export function AgendaPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <Button onClick={() => setIsNewAppointmentOpen(true)}>
+            <CalendarPlus aria-hidden="true" className="h-4 w-4" />
+            Novo agendamento
+          </Button>
           <Button onClick={handlePreviousDay} variant="secondary">
             <ChevronLeft aria-hidden="true" className="h-4 w-4" />
             Dia anterior
@@ -227,6 +247,181 @@ export function AgendaPage() {
           />
         )}
       </Card>
+
+      {isNewAppointmentOpen ? (
+        <NewAppointmentDrawer
+          barbers={barbersQuery.data ?? []}
+          isLoading={servicesQuery.isLoading || servicesQuery.isFetching}
+          onClose={() => setIsNewAppointmentOpen(false)}
+          services={servicesQuery.data ?? []}
+          servicesError={servicesQuery.error}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+type NewAppointmentDrawerProps = {
+  barbers: Barber[];
+  isLoading: boolean;
+  onClose: () => void;
+  services: Service[];
+  servicesError: unknown;
+};
+
+function NewAppointmentDrawer({
+  barbers,
+  isLoading,
+  onClose,
+  services,
+  servicesError,
+}: NewAppointmentDrawerProps) {
+  const [selectedServiceId, setSelectedServiceId] = useState("");
+  const [selectedBarberId, setSelectedBarberId] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedSlot, setSelectedSlot] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+
+  const activeServices = services.filter((service) => service.isActive);
+  const activeBarbers = barbers.filter((barber) => barber.isActive);
+
+  return (
+    <div
+      aria-labelledby="new-appointment-title"
+      aria-modal="true"
+      className="fixed inset-0 z-30 flex items-end bg-black/30 p-0 sm:items-center sm:justify-center sm:p-4"
+      role="dialog"
+    >
+      <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-lg bg-surface p-5 shadow-[0_20px_60px_rgba(31,29,27,0.22)] sm:max-w-2xl sm:rounded-lg sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-surface-muted text-primary">
+              <CalendarPlus aria-hidden="true" className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="text-lg font-semibold" id="new-appointment-title">
+                Novo agendamento
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-text-secondary">
+                Selecione serviço, barbeiro e data para preparar o agendamento manual.
+              </p>
+            </div>
+          </div>
+          <Button
+            aria-label="Fechar novo agendamento"
+            className="min-h-10 px-3"
+            onClick={onClose}
+            variant="ghost"
+          >
+            <X aria-hidden="true" className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="mt-6 space-y-4">
+          {isLoading ? (
+            <LoadingState label="Carregando serviços e barbeiros..." />
+          ) : servicesError ? (
+            <ErrorState
+              message={
+                servicesError instanceof Error
+                  ? servicesError.message
+                  : "Não foi possível carregar os dados do agendamento."
+              }
+              title="Erro ao carregar dados"
+            />
+          ) : activeServices.length === 0 ? (
+            <EmptyState
+              description="Cadastre ou reative um serviço antes de criar agendamentos manuais."
+              title="Nenhum serviço ativo"
+            />
+          ) : activeBarbers.length === 0 ? (
+            <EmptyState
+              description="Cadastre ou reative um barbeiro antes de criar agendamentos manuais."
+              title="Nenhum barbeiro ativo"
+            />
+          ) : (
+            <form
+              className="space-y-4"
+              onSubmit={(event) => event.preventDefault()}
+            >
+              <div className="grid gap-4 sm:grid-cols-2">
+                <SelectField
+                  label="Serviço"
+                  onChange={setSelectedServiceId}
+                  options={[
+                    { label: "Selecione um serviço", value: "" },
+                    ...activeServices.map((service) => ({
+                      label: `${service.name} - ${formatCurrency(service.priceInCents)}`,
+                      value: service.id,
+                    })),
+                  ]}
+                  value={selectedServiceId}
+                />
+                <SelectField
+                  label="Barbeiro"
+                  onChange={setSelectedBarberId}
+                  options={[
+                    { label: "Selecione um barbeiro", value: "" },
+                    ...activeBarbers.map((barber) => ({
+                      label: barber.name,
+                      value: barber.id,
+                    })),
+                  ]}
+                  value={selectedBarberId}
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Input
+                  label="Data"
+                  onChange={(event) => setSelectedDate(event.target.value)}
+                  type="date"
+                  value={selectedDate}
+                />
+                <Input
+                  disabled
+                  label="Horário"
+                  onChange={(event) => setSelectedSlot(event.target.value)}
+                  placeholder="Disponibilidade no próximo passo"
+                  value={selectedSlot}
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Input
+                  disabled
+                  label="Nome do cliente"
+                  onChange={(event) => setCustomerName(event.target.value)}
+                  placeholder="Cliente será informado no próximo passo"
+                  value={customerName}
+                />
+                <Input
+                  disabled
+                  inputMode="tel"
+                  label="Telefone do cliente"
+                  onChange={(event) => setCustomerPhone(event.target.value)}
+                  placeholder="Telefone será informado no próximo passo"
+                  value={customerPhone}
+                />
+              </div>
+
+              <div className="rounded-lg bg-surface-muted px-4 py-3 text-sm text-text-secondary shadow-[inset_0_0_0_1px_rgba(47,42,36,0.08)]">
+                A seleção de horários será implementada no próximo passo.
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+                <Button onClick={onClose} type="button" variant="secondary">
+                  Cancelar
+                </Button>
+                <Button disabled type="button">
+                  Continuar
+                </Button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -449,4 +644,11 @@ function formatTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function formatCurrency(valueInCents: number) {
+  return new Intl.NumberFormat("pt-BR", {
+    currency: "BRL",
+    style: "currency",
+  }).format(valueInCents / 100);
 }
