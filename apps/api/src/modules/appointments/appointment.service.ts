@@ -60,6 +60,13 @@ export class AppointmentError extends Error {
 export async function createPublicAppointment(
   input: CreatePublicAppointmentInput,
 ) {
+  if (input.startAt <= new Date()) {
+    throw new AppointmentError(
+      "Não é possível criar um agendamento em um horário passado.",
+      400,
+    );
+  }
+
   const context = await getSchedulingContext({
     barbershopSlug: input.barbershopSlug,
     serviceId: input.serviceId,
@@ -221,6 +228,13 @@ export async function rescheduleAppointment(
   appointmentId: string,
   input: RescheduleAppointmentInput,
 ) {
+  if (input.startAt <= new Date()) {
+    throw new AppointmentError(
+      "Não é possível reagendar para um horário passado.",
+      400,
+    );
+  }
+
   const barbershop = await getRequiredOwnerBarbershop(ownerId);
   const existingAppointment = await prisma.appointment.findFirst({
     where: {

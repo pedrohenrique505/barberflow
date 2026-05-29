@@ -59,6 +59,18 @@ export async function getAvailability(query: AvailabilityQuery) {
   });
   const dayStart = getUtcDayStart(query.date);
   const dayEnd = addMinutes(dayStart, 24 * 60);
+  const now = new Date();
+  const todayStart = getUtcDayStart(now.toISOString().slice(0, 10));
+
+  if (dayStart < todayStart) {
+    return formatAvailabilityResponse(
+      query.date,
+      context.service,
+      context.barber,
+      [],
+    );
+  }
+
   const availability = await checkTimeRangeAvailability({
     barbershopId: context.barbershop.id,
     barberId: context.barber.id,
@@ -81,6 +93,7 @@ export async function getAvailability(query: AvailabilityQuery) {
     closesAtMinute: availability.workingHour.closesAtMinute,
     durationInMinutes: context.service.durationMinutes,
     busyIntervals: availability.busyIntervals,
+    minStartAt: dayStart.getTime() === todayStart.getTime() ? now : undefined,
   });
 
   return formatAvailabilityResponse(
@@ -176,6 +189,7 @@ export async function ensureSlotIsAvailable(input: {
     closesAtMinute: availability.workingHour.closesAtMinute,
     durationInMinutes: input.durationInMinutes,
     busyIntervals: availability.busyIntervals,
+    minStartAt: new Date(),
   });
   const selectedSlot = slots.find(
     (slot) => slot.startAt.getTime() === input.startAt.getTime(),
@@ -257,6 +271,7 @@ function buildAvailableSlots(input: {
   closesAtMinute: number;
   durationInMinutes: number;
   busyIntervals: BusyInterval[];
+  minStartAt?: Date;
 }) {
   const slots: Array<{ startAt: Date; endAt: Date; label: string }> = [];
 
@@ -271,7 +286,7 @@ function buildAvailableSlots(input: {
       overlaps(startAt, endAt, busyInterval.startAt, busyInterval.endAt),
     );
 
-    if (!hasConflict) {
+    if (!hasConflict && (!input.minStartAt || startAt > input.minStartAt)) {
       slots.push({
         startAt,
         endAt,
