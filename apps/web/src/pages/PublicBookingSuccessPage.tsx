@@ -5,6 +5,7 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { ErrorState } from "../components/ui/ErrorState";
 import type { PublicAppointment } from "../features/public-booking/public-booking.api";
+import { formatPhone } from "../lib/phone";
 
 type SuccessLocationState = {
   appointment?: PublicAppointment;
@@ -68,7 +69,10 @@ export function PublicBookingSuccessPage() {
             <SummaryLine label="Serviço" value={appointment.service.name} />
             <SummaryLine label="Barbeiro" value={appointment.barber.name} />
             <SummaryLine label="Cliente" value={appointment.customer.name} />
-            <SummaryLine label="Telefone" value={appointment.customer.phone} />
+            <SummaryLine
+              label="Telefone"
+              value={formatPhone(appointment.customer.phone)}
+            />
             <SummaryLine label="Data" value={startDateTime.date} />
             <SummaryLine label="Horário de início" value={startDateTime.time} />
             <SummaryLine label="Horário de fim" value={endDateTime.time} />

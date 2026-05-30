@@ -22,6 +22,12 @@ import { Input } from "../components/ui/Input";
 import { LoadingState } from "../components/ui/LoadingState";
 import { getTodayDateInputValue, isDateInputBeforeToday } from "../lib/date";
 import {
+  formatPhone,
+  isValidPhone,
+  normalizePhone,
+  PHONE_VALIDATION_MESSAGE,
+} from "../lib/phone";
+import {
   createAppointment,
   getAvailability,
   getPublicBarbers,
@@ -52,7 +58,7 @@ const customerDataSchema = z.object({
     .string()
     .trim()
     .min(1, "Informe seu telefone.")
-    .min(8, "Informe um telefone válido."),
+    .refine(isValidPhone, PHONE_VALIDATION_MESSAGE),
 });
 
 type CustomerDataForm = z.infer<typeof customerDataSchema>;
@@ -180,7 +186,7 @@ export function PublicBookingPage() {
       const customerData = getCustomerValues();
 
       setCustomerName(customerData.name.trim());
-      setCustomerPhone(customerData.phone.trim());
+      setCustomerPhone(formatPhone(customerData.phone));
     }
 
     setCurrentStep((stepIndex) => Math.min(stepIndex + 1, steps.length - 1));
@@ -202,7 +208,7 @@ export function PublicBookingPage() {
     }
 
     const trimmedCustomerName = customerName.trim();
-    const trimmedCustomerPhone = customerPhone.trim();
+    const trimmedCustomerPhone = normalizePhone(customerPhone);
 
     if (!trimmedCustomerName || !trimmedCustomerPhone) {
       setConfirmationError("Informe nome e telefone antes de confirmar.");
@@ -314,7 +320,10 @@ export function PublicBookingPage() {
                 <SummaryLine label="Data" value={formatDate(selectedDate) || "Próxima etapa"} />
                 <SummaryLine label="Horário" value={selectedSlot?.label ?? "Próxima etapa"} />
                 <SummaryLine label="Cliente" value={customerName || "Próxima etapa"} />
-                <SummaryLine label="Telefone" value={customerPhone || "Próxima etapa"} />
+                <SummaryLine
+                  label="Telefone"
+                  value={formatPhone(customerPhone) || "Próxima etapa"}
+                />
               </dl>
             </aside>
           </div>
@@ -682,10 +691,14 @@ function CustomerDataStep({
         <Input
           error={errors.phone?.message}
           label="Telefone"
-          placeholder="Seu telefone"
+          maxLength={16}
+          placeholder="(88) 9 9999-9999"
           type="tel"
           {...register("phone", {
-            onChange: (event) => onChangePhone(event.target.value),
+            onChange: (event) => {
+              event.target.value = formatPhone(event.target.value);
+              onChangePhone(event.target.value);
+            },
           })}
         />
       </form>
@@ -737,7 +750,10 @@ function ConfirmationStep({
           <SummaryLine label="Data" value={formatDate(selectedDate) || "Não escolhida"} />
           <SummaryLine label="Horário" value={selectedSlot?.label ?? "Não escolhido"} />
           <SummaryLine label="Nome" value={customerName || "Não informado"} />
-          <SummaryLine label="Telefone" value={customerPhone || "Não informado"} />
+          <SummaryLine
+            label="Telefone"
+            value={formatPhone(customerPhone) || "Não informado"}
+          />
           {selectedService ? (
             <SummaryLine
               label="Preço"

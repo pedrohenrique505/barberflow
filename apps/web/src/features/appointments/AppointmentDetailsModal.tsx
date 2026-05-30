@@ -22,6 +22,7 @@ import {
 } from "./appointments.api";
 import { ApiError } from "../../lib/api";
 import { getTodayDateInputValue, isDateInputBeforeToday } from "../../lib/date";
+import { formatPhone } from "../../lib/phone";
 
 export const appointmentStatusLabels: Record<AppointmentStatus, string> = {
   scheduled: "Agendado",
@@ -241,7 +242,10 @@ export function AppointmentDetailsModal({
                   )}`}
                 />
                 <DetailItem label="Cliente" value={appointment.customer.name} />
-                <DetailItem label="Telefone" value={appointment.customer.phone} />
+                <DetailItem
+                  label="Telefone"
+                  value={formatPhone(appointment.customer.phone)}
+                />
                 <DetailItem label="Serviço" value={appointment.service.name} />
                 <DetailItem
                   label="Preço"

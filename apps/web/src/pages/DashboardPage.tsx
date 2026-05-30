@@ -5,6 +5,7 @@ import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 
 import { apiRequest } from "../lib/api";
+import { formatPhone } from "../lib/phone";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -212,7 +213,9 @@ export function DashboardPage() {
                     <p className="font-medium text-text-primary">
                       {formatDateTime(appointment.startAt)}
                     </p>
-                    <p className="mt-1">{appointment.customer.phone}</p>
+                    <p className="mt-1 tabular-nums">
+                      {formatPhone(appointment.customer.phone)}
+                    </p>
                   </div>
                   <span className="inline-flex w-fit rounded-full bg-surface-muted px-3 py-1 text-xs font-medium text-text-secondary">
                     {statusLabels[appointment.status]}

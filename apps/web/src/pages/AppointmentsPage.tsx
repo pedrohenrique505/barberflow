@@ -21,6 +21,7 @@ import {
   appointmentStatusActions,
   appointmentStatusLabels,
 } from "../features/appointments/AppointmentDetailsModal";
+import { formatPhone } from "../lib/phone";
 
 const appointmentsQueryKey = ["appointments"];
 
@@ -319,7 +320,7 @@ function AppointmentsTable({
                     {appointment.customer.name}
                   </p>
                   <p className="mt-1 tabular-nums text-text-secondary">
-                    {appointment.customer.phone}
+                    {formatPhone(appointment.customer.phone)}
                   </p>
                 </td>
                 <td className="px-5 py-4">

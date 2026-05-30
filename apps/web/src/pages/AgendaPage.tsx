@@ -41,6 +41,13 @@ import {
 } from "../features/public-booking/public-booking.api";
 import { listServices, type Service } from "../features/services/services.api";
 import { getTodayDateInputValue, isDateInputBeforeToday } from "../lib/date";
+import {
+  formatPhone,
+  formatPhoneSearch,
+  isValidPhone,
+  normalizePhone,
+  PHONE_VALIDATION_MESSAGE,
+} from "../lib/phone";
 
 const appointmentsQueryKey = ["appointments"];
 const barbersQueryKey = ["barbers"];
@@ -59,7 +66,7 @@ const newAppointmentSchema = z.object({
     .string()
     .trim()
     .min(1, "Informe o telefone do cliente.")
-    .min(8, "Informe um telefone válido."),
+    .refine(isValidPhone, PHONE_VALIDATION_MESSAGE),
   date: z
     .string()
     .min(1, "Selecione uma data.")
@@ -432,7 +439,11 @@ function NewAppointmentDrawer({
 
   function handleCustomerSearch() {
     setHasSearchedCustomers(true);
-    customerSearchMutation.mutate(customerSearch);
+    const normalizedSearchPhone = normalizePhone(customerSearch);
+
+    customerSearchMutation.mutate(
+      normalizedSearchPhone || customerSearch.trim(),
+    );
   }
 
   function handleCustomerSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -447,7 +458,9 @@ function NewAppointmentDrawer({
   function handleSelectCustomer(customer: Customer) {
     setSelectedCustomerId(customer.id);
     setValue("customerName", customer.name, { shouldValidate: true });
-    setValue("customerPhone", customer.phone, { shouldValidate: true });
+    setValue("customerPhone", formatPhone(customer.phone), {
+      shouldValidate: true,
+    });
   }
 
   function handleUseAnotherCustomer() {
@@ -459,7 +472,13 @@ function NewAppointmentDrawer({
     event: ChangeEvent<HTMLInputElement>,
   ) {
     setSelectedCustomerId(null);
-    setValue(field, event.target.value, { shouldValidate: true });
+    setValue(
+      field,
+      field === "customerPhone"
+        ? formatPhone(event.target.value)
+        : event.target.value,
+      { shouldValidate: true },
+    );
   }
 
   function handleServiceChange(value: string) {
@@ -530,7 +549,7 @@ function NewAppointmentDrawer({
       barberId: data.barberId,
       barbershopSlug: barbershopQuery.data.slug,
       customerName: data.customerName.trim(),
-      customerPhone: data.customerPhone.trim(),
+      customerPhone: normalizePhone(data.customerPhone),
       serviceId: data.serviceId,
       startAt: selectedSlot.startAt,
     });
@@ -708,7 +727,9 @@ function NewAppointmentDrawer({
                 <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                   <Input
                     label="Buscar cliente"
-                    onChange={(event) => setCustomerSearch(event.target.value)}
+                    onChange={(event) =>
+                      setCustomerSearch(formatPhoneSearch(event.target.value))
+                    }
                     onKeyDown={handleCustomerSearchKeyDown}
                     placeholder="Buscar por nome ou telefone"
                     value={customerSearch}
@@ -767,7 +788,7 @@ function NewAppointmentDrawer({
                             {customer.name}
                           </h4>
                           <p className="mt-1 truncate text-sm text-text-secondary">
-                            {customer.phone}
+                            {formatPhone(customer.phone)}
                           </p>
                         </div>
                         <Button
@@ -803,7 +824,8 @@ function NewAppointmentDrawer({
                   onChange={(event) =>
                     handleManualCustomerChange("customerPhone", event)
                   }
-                  placeholder="88999999999"
+                  maxLength={16}
+                  placeholder="(88) 9 9999-9999"
                   value={customerPhone}
                 />
               </div>
@@ -835,7 +857,7 @@ function NewAppointmentDrawer({
                   />
                   <SummaryItem
                     label="Telefone"
-                    value={customerPhone.trim() || "Não informado"}
+                    value={formatPhone(customerPhone) || "Não informado"}
                   />
                 </dl>
               </div>
@@ -935,7 +957,10 @@ function BarberAgendaGroup({
                   <AppointmentStatusBadge status={appointment.status} />
                 </div>
                 <dl className="mt-2 grid gap-1 text-sm text-text-secondary sm:grid-cols-2">
-                  <InfoItem label="Telefone" value={appointment.customer.phone} />
+                  <InfoItem
+                    label="Telefone"
+                    value={formatPhone(appointment.customer.phone)}
+                  />
                   <InfoItem label="Serviço" value={appointment.service.name} />
                   <InfoItem label="Barbeiro" value={appointment.barber.name} />
                 </dl>

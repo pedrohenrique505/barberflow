@@ -1,4 +1,5 @@
 import { apiRequest } from "../../lib/api";
+import { normalizePhone } from "../../lib/phone";
 
 export type AppointmentStatus =
   | "scheduled"
@@ -46,7 +47,9 @@ export type UpdateCustomerPayload = {
 };
 
 export function listCustomers(params: ListCustomersParams = {}) {
-  const search = params.search?.trim();
+  const rawSearch = params.search?.trim();
+  const normalizedPhoneSearch = rawSearch ? normalizePhone(rawSearch) : "";
+  const search = normalizedPhoneSearch || rawSearch;
   const query = new URLSearchParams();
 
   if (search) {

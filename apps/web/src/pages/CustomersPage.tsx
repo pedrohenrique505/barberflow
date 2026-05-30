@@ -22,6 +22,7 @@ import {
   customerFormSchema,
   type CustomerFormData,
 } from "../features/customers/customerSchemas";
+import { formatPhone, formatPhoneSearch, normalizePhone } from "../lib/phone";
 
 const customersQueryKey = ["customers"];
 
@@ -66,7 +67,7 @@ export function CustomersPage() {
   function handleSearchSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSuccessMessage(null);
-    setActiveSearch(searchInput.trim());
+    setActiveSearch(normalizePhone(searchInput) || searchInput.trim());
   }
 
   function clearSearch() {
@@ -141,7 +142,9 @@ export function CustomersPage() {
             <div className="flex-1">
               <Input
                 label="Buscar clientes"
-                onChange={(event) => setSearchInput(event.target.value)}
+                onChange={(event) =>
+                  setSearchInput(formatPhoneSearch(event.target.value))
+                }
                 placeholder="Buscar por nome ou telefone"
                 value={searchInput}
               />
@@ -246,7 +249,7 @@ function CustomersTable({
                 {customer.name}
               </td>
               <td className="px-5 py-4 tabular-nums text-text-secondary">
-                {customer.phone}
+                {formatPhone(customer.phone)}
               </td>
               <td className="px-5 py-4 tabular-nums text-text-secondary">
                 {formatDate(customer.createdAt)}
@@ -348,7 +351,7 @@ function CustomerDetailsContent({ customer }: { customer: CustomerDetails }) {
             Telefone
           </dt>
           <dd className="mt-1 tabular-nums text-text-primary">
-            {customer.phone}
+            {formatPhone(customer.phone)}
           </dd>
         </div>
         <div>
@@ -423,7 +426,7 @@ function CustomerFormDialog({
   const defaultValues = useMemo<CustomerFormData>(
     () => ({
       name: customer.name,
-      phone: customer.phone,
+      phone: formatPhone(customer.phone),
     }),
     [customer],
   );
@@ -469,9 +472,14 @@ function CustomerFormDialog({
           <Input
             error={errors.phone?.message}
             label="Telefone"
-            placeholder="88999999999"
+            maxLength={16}
+            placeholder="(88) 9 9999-9999"
             type="tel"
-            {...register("phone")}
+            {...register("phone", {
+              onChange: (event) => {
+                event.target.value = formatPhone(event.target.value);
+              },
+            })}
           />
 
           <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
@@ -539,7 +547,7 @@ function StatusBadge({ status }: { status: AppointmentStatus }) {
 function toUpdateCustomerPayload(data: CustomerFormData) {
   return {
     name: data.name.trim(),
-    phone: data.phone.trim(),
+    phone: normalizePhone(data.phone),
   };
 }
 
