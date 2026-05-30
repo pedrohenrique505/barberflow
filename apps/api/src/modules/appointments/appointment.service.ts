@@ -1,5 +1,10 @@
 import { AppointmentStatus, Prisma } from "@prisma/client";
 
+import {
+  CUSTOMER_PHONE_VALIDATION_MESSAGE,
+  isValidCustomerPhone,
+  normalizePhone,
+} from "../../lib/phone.js";
 import { prisma } from "../../lib/prisma.js";
 import {
   ensureSlotIsAvailable,
@@ -60,6 +65,12 @@ export class AppointmentError extends Error {
 export async function createPublicAppointment(
   input: CreatePublicAppointmentInput,
 ) {
+  const customerPhone = normalizePhone(input.customerPhone);
+
+  if (!isValidCustomerPhone(customerPhone)) {
+    throw new AppointmentError(CUSTOMER_PHONE_VALIDATION_MESSAGE, 400);
+  }
+
   if (input.startAt <= new Date()) {
     throw new AppointmentError(
       "Não é possível criar um agendamento em um horário passado.",
@@ -109,7 +120,7 @@ export async function createPublicAppointment(
           where: {
             barbershopId_phone: {
               barbershopId: context.barbershop.id,
-              phone: input.customerPhone,
+              phone: customerPhone,
             },
           },
           update: {
@@ -118,7 +129,7 @@ export async function createPublicAppointment(
           create: {
             barbershopId: context.barbershop.id,
             name: input.customerName,
-            phone: input.customerPhone,
+            phone: customerPhone,
           },
           select: {
             id: true,

@@ -1,5 +1,10 @@
 import { AppointmentStatus, Prisma } from "@prisma/client";
 
+import {
+  CUSTOMER_PHONE_VALIDATION_MESSAGE,
+  isValidCustomerPhone,
+  normalizePhone,
+} from "../../lib/phone.js";
 import { prisma } from "../../lib/prisma.js";
 import type {
   ListCustomersQuery,
@@ -58,19 +63,29 @@ export async function listCustomers(
   query: ListCustomersQuery,
 ) {
   const barbershop = await getRequiredOwnerBarbershop(ownerId);
+  const phone = query.phone ? normalizePhone(query.phone) : undefined;
+  const searchPhone = query.search ? normalizePhone(query.search) : "";
+  const searchConditions: Prisma.CustomerWhereInput[] = query.search
+    ? [{ name: { contains: query.search, mode: "insensitive" } }]
+    : [];
+
+  if (query.phone && !phone) {
+    return [];
+  }
+
+  if (searchPhone) {
+    searchConditions.push({ phone: { contains: searchPhone } });
+  }
 
   return prisma.customer.findMany({
     where: {
       barbershopId: barbershop.id,
-      ...(query.search
+      ...(searchConditions.length > 0
         ? {
-            OR: [
-              { name: { contains: query.search, mode: "insensitive" } },
-              { phone: { contains: query.search } },
-            ],
+            OR: searchConditions,
           }
         : {}),
-      ...(query.phone ? { phone: { contains: query.phone } } : {}),
+      ...(phone ? { phone: { contains: phone } } : {}),
     },
     orderBy: {
       createdAt: "desc",
@@ -102,6 +117,12 @@ export async function updateCustomer(
   input: UpdateCustomerInput,
 ) {
   const barbershop = await getRequiredOwnerBarbershop(ownerId);
+  const phone = normalizePhone(input.phone);
+
+  if (!isValidCustomerPhone(phone)) {
+    throw new CustomerError(CUSTOMER_PHONE_VALIDATION_MESSAGE, 400);
+  }
+
   const existingCustomer = await prisma.customer.findFirst({
     where: {
       id: customerId,
@@ -117,11 +138,11 @@ export async function updateCustomer(
     throw new CustomerError("Cliente não encontrado.", 404);
   }
 
-  if (input.phone !== existingCustomer.phone) {
+  if (phone !== existingCustomer.phone) {
     const duplicatedCustomer = await prisma.customer.findFirst({
       where: {
         barbershopId: barbershop.id,
-        phone: input.phone,
+        phone,
         id: {
           not: customerId,
         },
@@ -146,7 +167,7 @@ export async function updateCustomer(
       },
       data: {
         name: input.name,
-        phone: input.phone,
+        phone,
       },
       select: customerSelect,
     });
